@@ -1,4 +1,5 @@
 import type {
+  EventPayload,
   Pairing,
   TournamentCreatedPayload,
   TournamentEvent,
@@ -23,10 +24,7 @@ export const CREATED_PAYLOAD: TournamentCreatedPayload = {
   swissRounds: 3,
 };
 
-export type PayloadOf<T extends TournamentEventType> = Extract<
-  TournamentEvent,
-  { type: T }
->['payload'];
+export type PayloadOf<T extends TournamentEventType> = EventPayload<T>;
 
 /** Builds one event with a deterministic id and timestamp derived from `seq`. */
 export function event<T extends TournamentEventType>(

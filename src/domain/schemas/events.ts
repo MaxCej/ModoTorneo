@@ -117,3 +117,7 @@ export const TournamentEventSchema = z.discriminatedUnion('type', [
 ]);
 export type TournamentEvent = z.infer<typeof TournamentEventSchema>;
 export type TournamentEventType = TournamentEvent['type'];
+export type EventPayload<T extends TournamentEventType> = Extract<
+  TournamentEvent,
+  { type: T }
+>['payload'];
