@@ -4,13 +4,20 @@ import {
   parseTournamentDocument,
   type DomainError,
   type IsoDateTime,
+  type Player,
   type Result,
   type TournamentDocument,
   type Uuid,
 } from '../domain';
 import { ModoTorneoDb, type TournamentRow } from './db';
 import { toSummary } from './summary';
-import type { Revision, StorageError, StoredTournament, TournamentSummary } from './types';
+import type {
+  Revision,
+  StorageBackend,
+  StorageError,
+  StoredTournament,
+  TournamentSummary,
+} from './types';
 
 export type DexieBackendOptions = { dbName?: string; now?: () => IsoDateTime };
 
@@ -29,6 +36,14 @@ function invalidDocument(message: string, cause: DomainError): StorageError {
   return { code: 'INVALID_DOCUMENT', message: `${message}: ${cause.message}`, cause };
 }
 
+/** Name order. Fixed to English (the only UI locale) so it does not depend on the runtime. */
+const collator = new Intl.Collator('en');
+
+/** Final tie-breaker on ids, so equal names still come back in a deterministic order. */
+function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function rowSummary(row: TournamentRow): TournamentSummary {
   return {
     id: row.id,
@@ -43,7 +58,7 @@ function rowSummary(row: TournamentRow): TournamentSummary {
 }
 
 /** Local backend: IndexedDB through Dexie. Every document is validated on save and on load. */
-export class DexieBackend {
+export class DexieBackend implements StorageBackend {
   private readonly db: ModoTorneoDb;
   private readonly now: () => IsoDateTime;
 
@@ -67,8 +82,11 @@ export class DexieBackend {
   listTournaments(): Promise<Result<TournamentSummary[], StorageError>> {
     return this.run(async () => {
       const rows = await this.db.tournaments.toArray();
-      rows.sort((a, b) =>
-        a.date === b.date ? a.name.localeCompare(b.name) : a.date < b.date ? 1 : -1,
+      rows.sort(
+        (a, b) =>
+          (a.date === b.date ? 0 : a.date < b.date ? 1 : -1) ||
+          collator.compare(a.name, b.name) ||
+          byCodeUnit(a.id, b.id),
       );
       return ok(rows.map(rowSummary));
     });
@@ -137,5 +155,21 @@ export class DexieBackend {
         return ok(undefined);
       }),
     );
+  }
+
+  listPlayers(): Promise<Result<Player[], StorageError>> {
+    return this.run(async () => {
+      // Sorted in memory like tournament names: the `name` index orders by code unit, not locale.
+      const players = await this.db.players.toArray();
+      players.sort((a, b) => collator.compare(a.name, b.name) || byCodeUnit(a.id, b.id));
+      return ok(players);
+    });
+  }
+
+  savePlayer(player: Player): Promise<Result<void, StorageError>> {
+    return this.run(async () => {
+      await this.db.players.put(player);
+      return ok(undefined);
+    });
   }
 }

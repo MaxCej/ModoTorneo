@@ -185,6 +185,17 @@ describe('DexieBackend tournaments', () => {
     ]);
   });
 
+  it('orders tournaments with the same date and name by id', async () => {
+    const { backend } = freshBackend();
+    const first = newDoc({ name: 'Weekly' });
+    const second = newDoc({ name: 'Weekly' });
+    await backend.saveTournament(second, null);
+    await backend.saveTournament(first, null);
+
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value.map((s) => s.id)).toEqual([first.id, second.id]);
+  });
+
   it('deletes with the current revision', async () => {
     const { backend } = freshBackend();
     await backend.saveTournament(fixtureDoc(), null);
@@ -207,5 +218,59 @@ describe('DexieBackend tournaments', () => {
 
     const saved = await backend.saveTournament(fixtureDoc(), null);
     expect(saved.ok || saved.error.code).toBe('UNAVAILABLE');
+
+    const players = await backend.listPlayers();
+    expect(players.ok || players.error.code).toBe('UNAVAILABLE');
+  });
+});
+
+describe('DexieBackend players', () => {
+  const CREATED_AT = '2026-10-11T18:00:00.000Z';
+
+  it('inserts a player and lists it', async () => {
+    const { backend } = freshBackend();
+    const alice = { id: uuid(101), name: 'Alice', createdAt: CREATED_AT };
+
+    const saved = await backend.savePlayer(alice);
+    expect(saved).toEqual({ ok: true, value: undefined });
+
+    const list = await backend.listPlayers();
+    expect(list).toEqual({ ok: true, value: [alice] });
+  });
+
+  it('updates an existing player by id', async () => {
+    const { backend } = freshBackend();
+    await backend.savePlayer({ id: uuid(101), name: 'Alice', createdAt: CREATED_AT });
+    await backend.savePlayer({ id: uuid(101), name: 'Alicia', createdAt: CREATED_AT });
+
+    const list = await backend.listPlayers();
+    expect(list).toEqual({
+      ok: true,
+      value: [{ id: uuid(101), name: 'Alicia', createdAt: CREATED_AT }],
+    });
+  });
+
+  it('lists players by name ascending', async () => {
+    const { backend } = freshBackend();
+    for (const [n, name] of [
+      [1, 'Diego'],
+      [2, 'alice'],
+      [3, 'Bruno'],
+      [4, 'Carmen'],
+    ] as const) {
+      await backend.savePlayer({ id: uuid(100 + n), name, createdAt: CREATED_AT });
+    }
+
+    const list = await backend.listPlayers();
+    expect(list.ok && list.value.map((p) => p.name)).toEqual(['alice', 'Bruno', 'Carmen', 'Diego']);
+  });
+
+  it('orders players with the same name by id', async () => {
+    const { backend } = freshBackend();
+    await backend.savePlayer({ id: uuid(102), name: 'Alex', createdAt: CREATED_AT });
+    await backend.savePlayer({ id: uuid(101), name: 'Alex', createdAt: CREATED_AT });
+
+    const list = await backend.listPlayers();
+    expect(list.ok && list.value.map((p) => p.id)).toEqual([uuid(101), uuid(102)]);
   });
 });
