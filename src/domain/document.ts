@@ -6,13 +6,10 @@ import { TournamentDocumentSchema, type TournamentDocument } from './schemas/doc
 import type { TournamentState } from './state';
 
 /**
- * Validates untrusted JSON (an imported file, GitHub data) as a tournament document and
- * replays its log. Any schema failure or broken invariant returns an error instead of a state.
+ * A newer integer `schemaVersion` was saved by a newer app: `UNSUPPORTED_SCHEMA_VERSION`.
+ * Anything else that is not 1 is a broken file, left for the schema to report as `INVALID_SCHEMA`.
  */
-export function parseTournamentDocument(
-  json: unknown,
-): Result<{ doc: TournamentDocument; state: TournamentState }, DomainError> {
-  // A newer integer version was saved by a newer app; anything else that is not 1 is a broken file.
+export function unsupportedSchemaVersion(json: unknown): DomainError | null {
   if (typeof json === 'object' && json !== null && 'schemaVersion' in json) {
     const { schemaVersion } = json;
     if (
@@ -20,10 +17,25 @@ export function parseTournamentDocument(
       Number.isInteger(schemaVersion) &&
       schemaVersion >= 2
     ) {
-      return err(
-        domainError('UNSUPPORTED_SCHEMA_VERSION', `Unsupported schemaVersion ${schemaVersion}`),
+      return domainError(
+        'UNSUPPORTED_SCHEMA_VERSION',
+        `Unsupported schemaVersion ${schemaVersion}`,
       );
     }
+  }
+  return null;
+}
+
+/**
+ * Validates untrusted JSON (an imported file, GitHub data) as a tournament document and
+ * replays its log. Any schema failure or broken invariant returns an error instead of a state.
+ */
+export function parseTournamentDocument(
+  json: unknown,
+): Result<{ doc: TournamentDocument; state: TournamentState }, DomainError> {
+  const unsupported = unsupportedSchemaVersion(json);
+  if (unsupported) {
+    return err(unsupported);
   }
   const parsed = TournamentDocumentSchema.safeParse(json);
   if (!parsed.success) {
