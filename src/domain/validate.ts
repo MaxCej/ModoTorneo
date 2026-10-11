@@ -98,9 +98,18 @@ export function validate(
     case 'TournamentFinished':
       return validateFinished(state, event);
 
-    case 'RolledBack':
-      // Implemented in step 7 of SPEC 02.
-      throw new Error(`validate: ${event.type} is not supported yet`);
+    case 'RolledBack': {
+      // Allowed in any status. Voided and RolledBack seqs are never effective (no redo).
+      const { toSeq } = event.payload;
+      if (toSeq >= state.lastSeq || !state.effectiveSeqs.includes(toSeq)) {
+        return domainError(
+          'INVALID_ROLLBACK_TARGET',
+          `Seq ${toSeq} is not an effective event before seq ${state.lastSeq}`,
+          event.seq,
+        );
+      }
+      return null;
+    }
   }
 }
 

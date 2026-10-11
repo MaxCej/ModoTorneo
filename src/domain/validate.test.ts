@@ -584,3 +584,38 @@ describe('validate: TournamentFinished', () => {
     });
   });
 });
+
+describe('validate: RolledBack', () => {
+  /** seq 1 created, 2–5 register P1–P4, 6 drops P4, 7 rolls back to 5 (voids 6), 8 drops P3. */
+  const withRollback = () =>
+    reduceLog(
+      registeredLog(4)
+        .add('PlayerDropped', { playerId: P4 })
+        .add('RolledBack', { toSeq: 5 })
+        .add('PlayerDropped', { playerId: P3 }),
+    );
+
+  it.each([1, 3, 5])('accepts effective seq %i as a target', (toSeq) => {
+    expect(validateNext(withRollback(), 'RolledBack', { toSeq })).toBeNull();
+  });
+
+  it.each(['setup', 'running', 'topCut', 'finished'] as const)(
+    'accepts a rollback while %s',
+    (status) => {
+      expect(validateNext({ ...withRollback(), status }, 'RolledBack', { toSeq: 2 })).toBeNull();
+    },
+  );
+
+  it.each([
+    ['a voided seq', 6],
+    ['the seq of a RolledBack event', 7],
+    ['the last seq (nothing to undo)', 8],
+    ['a seq after the log', 9],
+    ['seq 0', 0],
+  ])('rejects %s', (_, toSeq) => {
+    expect(validateNext(withRollback(), 'RolledBack', { toSeq })).toMatchObject({
+      code: 'INVALID_ROLLBACK_TARGET',
+      seq: 9,
+    });
+  });
+});

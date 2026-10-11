@@ -34,6 +34,7 @@ export type TournamentState = {
   rounds: Round[];
   lastSeq: number; // highest seq in the log, including voided events
   voidedSeqs: number[]; // seqs cancelled by RolledBack, ascending
+  effectiveSeqs: number[]; // seqs of effective events (valid rollback targets up to lastSeq), ascending
 };
 
 /** Builds the initial state from the log's first event. */
@@ -47,5 +48,6 @@ export function initialState(tournamentId: Uuid, event: TournamentCreated): Tour
     rounds: [],
     lastSeq: event.seq,
     voidedSeqs: [],
+    effectiveSeqs: [event.seq],
   };
 }

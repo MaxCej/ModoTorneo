@@ -16,6 +16,7 @@ describe('initialState', () => {
       rounds: [],
       lastSeq: 1,
       voidedSeqs: [],
+      effectiveSeqs: [1],
     });
   });
 });

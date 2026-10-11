@@ -8,6 +8,7 @@ import { validate } from './validate';
 /**
  * Applies one event that `validate` already accepted. Never mutates `state`.
  * `state` is `null` only for the first event (`TournamentCreated`).
+ * `RolledBack` needs earlier states, so only `reduce` handles it.
  */
 export function apply(
   state: TournamentState | null,
@@ -21,7 +22,7 @@ export function apply(
     return initialState(tournamentId, event);
   }
 
-  const next = { ...state, lastSeq: event.seq };
+  const next = { ...state, lastSeq: event.seq, effectiveSeqs: [...state.effectiveSeqs, event.seq] };
 
   switch (event.type) {
     case 'TournamentCreated':
@@ -83,8 +84,7 @@ export function apply(
       return { ...next, status: 'finished' };
 
     case 'RolledBack':
-      // Implemented in step 7 of SPEC 02.
-      throw new Error(`apply: ${event.type} is not supported yet`);
+      throw new Error('apply: RolledBack is handled by reduce');
   }
 }
 
@@ -93,21 +93,85 @@ function updateCurrentRound(state: TournamentState, update: (round: Round) => Ro
   return state.rounds.map((round, i) => (i === state.rounds.length - 1 ? update(round) : round));
 }
 
+/** State right after one effective event was applied. */
+type Snapshot = { seq: number; state: TournamentState };
+
 /**
- * Derives the tournament state from its event log.
- * Throws `CorruptLogError` when any event breaks an invariant.
+ * Replays the log, validating every event. Returns the final state and one snapshot per
+ * effective event, in seq order. Throws `CorruptLogError` when any event breaks an invariant.
  */
-export function reduce(events: readonly TournamentEvent[], tournamentId: Uuid): TournamentState {
+function replay(
+  events: readonly TournamentEvent[],
+  tournamentId: Uuid,
+): { state: TournamentState; snapshots: Snapshot[] } {
   let state: TournamentState | null = null;
+  let snapshots: Snapshot[] = [];
   for (const event of events) {
     const error = validate(state, event);
     if (error !== null) {
       throw new CorruptLogError(error);
     }
-    state = apply(state, event, tournamentId);
+    if (state !== null && event.type === 'RolledBack') {
+      const { toSeq } = event.payload;
+      const kept = snapshots.filter((s) => s.seq <= toSeq);
+      const voided = snapshots.filter((s) => s.seq > toSeq).map((s) => s.seq);
+      const target = kept[kept.length - 1].state;
+      state = {
+        ...target,
+        lastSeq: event.seq,
+        voidedSeqs: [...state.voidedSeqs, ...voided].sort((a, b) => a - b),
+      };
+      snapshots = kept;
+    } else {
+      state = apply(state, event, tournamentId);
+      snapshots.push({ seq: event.seq, state });
+    }
   }
   if (state === null) {
     throw new CorruptLogError(domainError('FIRST_EVENT_NOT_CREATED', 'The event log is empty'));
   }
-  return state;
+  return { state, snapshots };
+}
+
+/**
+ * Derives the tournament state from its event log, folding only the effective events.
+ * Throws `CorruptLogError` when any event breaks an invariant.
+ */
+export function reduce(events: readonly TournamentEvent[], tournamentId: Uuid): TournamentState {
+  return replay(events, tournamentId).state;
+}
+
+/**
+ * The events still in effect: on `RolledBack { toSeq }` every effective event with
+ * `seq > toSeq` is dropped. `RolledBack` events themselves are never effective.
+ */
+export function effectiveEvents(events: readonly TournamentEvent[]): TournamentEvent[] {
+  const effective: TournamentEvent[] = [];
+  for (const event of events) {
+    if (event.type === 'RolledBack') {
+      while (effective.length > 0 && effective[effective.length - 1].seq > event.payload.toSeq) {
+        effective.pop();
+      }
+    } else {
+      effective.push(event);
+    }
+  }
+  return effective;
+}
+
+/**
+ * Previews a rollback target: the state as it was right after the last effective event
+ * with `seq <= seq` was applied, including its `lastSeq`, `voidedSeqs` and `effectiveSeqs`.
+ */
+export function stateAt(
+  events: readonly TournamentEvent[],
+  seq: number,
+  tournamentId: Uuid,
+): TournamentState {
+  const { snapshots } = replay(events, tournamentId);
+  const snapshot = snapshots.findLast((s) => s.seq <= seq);
+  if (snapshot === undefined) {
+    throw new RangeError(`No effective event at or before seq ${seq}`);
+  }
+  return snapshot.state;
 }
