@@ -10,6 +10,8 @@ import {
   pairing,
   registeredLog,
   uuid,
+  WIN_A,
+  addClosedRound,
 } from './fixtures/builders';
 import { apply, reduce } from './reduce';
 import type { Pairing, TournamentEvent } from './schemas/events';
@@ -17,7 +19,6 @@ import { IMPLICIT_BYE_RESULT, type MatchResult } from './schemas/matchResult';
 
 const [P1, P2, P3, P4, P5] = PLAYERS;
 
-const WIN_A: MatchResult = { winsA: 2, winsB: 1, draws: 0, kind: 'played' };
 const WIN_B: MatchResult = { winsA: 0, winsB: 2, draws: 0, kind: 'played' };
 
 const swiss = (round: number, pairings: Pairing[]) => ({
@@ -194,6 +195,61 @@ describe('reduce: swiss rounds', () => {
       swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, null)]),
     );
     expect(corruptError(events)).toMatchObject({ code: 'INVALID_PAIRINGS', seq: 6 });
+  });
+});
+
+describe('reduce: top cut and finish', () => {
+  const top4 = { ...CREATED_PAYLOAD, swissRounds: 2, topCut: 4 as const };
+  const swissDone = () =>
+    addClosedRound(
+      addClosedRound(registeredLog(4, top4), 1, 'swiss', [
+        pairing(1, 1, P1, P2),
+        pairing(2, 2, P3, P4),
+      ]),
+      2,
+      'swiss',
+      [pairing(3, 1, P1, P3), pairing(4, 2, P2, P4)],
+    );
+
+  it('moves status to topCut on TopCutStarted', () => {
+    const { events } = swissDone().add('TopCutStarted', { size: 4 });
+    expect(reduce(events, TOURNAMENT_ID).status).toBe('topCut');
+  });
+
+  it('adds top cut rounds with stage topCut and finishes the tournament', () => {
+    const log = swissDone().add('TopCutStarted', { size: 4 });
+    addClosedRound(log, 3, 'topCut', [pairing(5, 1, P1, P4), pairing(6, 2, P2, P3)]);
+    addClosedRound(log, 4, 'topCut', [pairing(7, 1, P1, P2)]);
+    log.add('TournamentFinished', {});
+
+    const state = reduce(log.events, TOURNAMENT_ID);
+
+    expect(state.status).toBe('finished');
+    expect(state.rounds.map((r) => [r.number, r.stage, r.closed])).toEqual([
+      [1, 'swiss', true],
+      [2, 'swiss', true],
+      [3, 'topCut', true],
+      [4, 'topCut', true],
+    ]);
+    expect(state.rounds[3].matches[0].result).toEqual(WIN_A);
+  });
+
+  it('finishes a tournament without a top cut from running', () => {
+    const log = addClosedRound(registeredLog(2, { ...top4, topCut: 0 }), 1, 'swiss', [
+      pairing(1, 1, P1, P2),
+    ]).add('TournamentFinished', {});
+    expect(reduce(log.events, TOURNAMENT_ID).status).toBe('finished');
+  });
+
+  it('throws TOP_CUT_DRAW on replay of a drawn top cut match', () => {
+    const { events } = swissDone()
+      .add('TopCutStarted', { size: 4 })
+      .add('RoundPaired', { round: 3, stage: 'topCut', pairings: [pairing(5, 1, P1, P4)] })
+      .add('ResultReported', {
+        matchId: matchId(5),
+        result: { winsA: 0, winsB: 0, draws: 0, kind: 'intentionalDraw' },
+      });
+    expect(corruptError(events)).toMatchObject({ code: 'TOP_CUT_DRAW' });
   });
 });
 

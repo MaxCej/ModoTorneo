@@ -77,9 +77,13 @@ export function apply(
       };
 
     case 'TopCutStarted':
+      return { ...next, status: 'topCut' };
+
     case 'TournamentFinished':
+      return { ...next, status: 'finished' };
+
     case 'RolledBack':
-      // Implemented in steps 6–7 of SPEC 02.
+      // Implemented in step 7 of SPEC 02.
       throw new Error(`apply: ${event.type} is not supported yet`);
   }
 }

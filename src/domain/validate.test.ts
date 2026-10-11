@@ -8,17 +8,17 @@ import {
   matchId,
   pairing,
   registeredLog,
+  WIN_A,
+  addClosedRound,
   type PayloadOf,
 } from './fixtures/builders';
 import { reduce } from './reduce';
-import type { Pairing, TournamentEventType } from './schemas/events';
+import type { Pairing, TournamentCreatedPayload, TournamentEventType } from './schemas/events';
 import type { MatchResult } from './schemas/matchResult';
 import type { TournamentState } from './state';
 import { validate } from './validate';
 
 const [P1, P2, P3, P4, P5] = PLAYERS;
-
-const WIN_A: MatchResult = { winsA: 2, winsB: 1, draws: 0, kind: 'played' };
 
 type Log = ReturnType<typeof logBuilder>;
 
@@ -53,6 +53,32 @@ const round1Closed = () =>
 /** 3 players, round 1 paired with P3 on a bye (match 2). */
 const round1WithBye = () =>
   registeredLog(3).add('RoundPaired', swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, null)]));
+
+const TOP4: TournamentCreatedPayload = { ...CREATED_PAYLOAD, swissRounds: 2, topCut: 4 };
+
+/** 4 players, both swiss rounds played and closed (matches 1–4), status `running`. */
+const swissDone = (created = TOP4) =>
+  addClosedRound(
+    addClosedRound(registeredLog(4, created), 1, 'swiss', [
+      pairing(1, 1, P1, P2),
+      pairing(2, 2, P3, P4),
+    ]),
+    2,
+    'swiss',
+    [pairing(3, 1, P1, P3), pairing(4, 2, P2, P4)],
+  );
+
+const topCut = (round: number, pairings: Pairing[]) => ({
+  round,
+  stage: 'topCut' as const,
+  pairings,
+});
+
+const SEMIS = [pairing(5, 1, P1, P4), pairing(6, 2, P2, P3)];
+
+/** `swissDone` plus TopCutStarted and the open semifinal round 3 (matches 5 and 6). */
+const semisOpen = () =>
+  swissDone().add('TopCutStarted', { size: 4 }).add('RoundPaired', topCut(3, SEMIS));
 
 function stateWith(
   build: (log: ReturnType<typeof logBuilder>) => void = () => {},
@@ -347,6 +373,181 @@ describe('validate: RoundClosed', () => {
   it('rejects closing when no round has been paired', () => {
     expect(validateNext(reduceLog(registeredLog(4)), 'RoundClosed', { round: 1 })).toMatchObject({
       code: 'ROUND_CLOSED',
+    });
+  });
+});
+
+describe('validate: TopCutStarted', () => {
+  it('accepts once every swiss round is closed', () => {
+    expect(validateNext(reduceLog(swissDone()), 'TopCutStarted', { size: 4 })).toBeNull();
+  });
+
+  it('rejects starting the top cut during setup', () => {
+    expect(
+      validateNext(reduceLog(registeredLog(4, TOP4)), 'TopCutStarted', { size: 4 }),
+    ).toMatchObject({ code: 'WRONG_STATUS' });
+  });
+
+  it('rejects starting the top cut twice', () => {
+    const state = reduceLog(swissDone().add('TopCutStarted', { size: 4 }));
+    expect(validateNext(state, 'TopCutStarted', { size: 4 })).toMatchObject({
+      code: 'WRONG_STATUS',
+    });
+  });
+
+  it('rejects a tournament without a top cut', () => {
+    const state = reduceLog(swissDone({ ...TOP4, topCut: 0 }));
+    expect(validateNext(state, 'TopCutStarted', { size: 4 })).toMatchObject({
+      code: 'WRONG_STATUS',
+    });
+  });
+
+  it('rejects a size different from the configured top cut', () => {
+    expect(validateNext(reduceLog(swissDone()), 'TopCutStarted', { size: 8 })).toMatchObject({
+      code: 'WRONG_STATUS',
+    });
+  });
+
+  it('rejects while the last swiss round is open', () => {
+    const log = addClosedRound(registeredLog(4, TOP4), 1, 'swiss', [
+      pairing(1, 1, P1, P2),
+      pairing(2, 2, P3, P4),
+    ]).add('RoundPaired', swiss(2, [pairing(3, 1, P1, P3), pairing(4, 2, P2, P4)]));
+    expect(validateNext(reduceLog(log), 'TopCutStarted', { size: 4 })).toMatchObject({
+      code: 'ROUND_STILL_OPEN',
+    });
+  });
+
+  it('rejects before every swiss round is played', () => {
+    const log = addClosedRound(registeredLog(4, TOP4), 1, 'swiss', [
+      pairing(1, 1, P1, P2),
+      pairing(2, 2, P3, P4),
+    ]);
+    expect(validateNext(reduceLog(log), 'TopCutStarted', { size: 4 })).toMatchObject({
+      code: 'ROUND_OUT_OF_ORDER',
+    });
+  });
+});
+
+describe('validate: RoundPaired (topCut)', () => {
+  const started = () => reduceLog(swissDone().add('TopCutStarted', { size: 4 }));
+
+  it('accepts the first top cut round', () => {
+    expect(validateNext(started(), 'RoundPaired', topCut(3, SEMIS))).toBeNull();
+  });
+
+  it('does not require every active player to be paired', () => {
+    expect(validateNext(started(), 'RoundPaired', topCut(3, [pairing(5, 1, P1, P2)]))).toBeNull();
+  });
+
+  it('rejects top cut pairings before TopCutStarted', () => {
+    expect(validateNext(reduceLog(swissDone()), 'RoundPaired', topCut(3, SEMIS))).toMatchObject({
+      code: 'WRONG_STATUS',
+    });
+  });
+
+  it('rejects swiss pairings during the top cut', () => {
+    expect(validateNext(started(), 'RoundPaired', swiss(3, SEMIS))).toMatchObject({
+      code: 'WRONG_STATUS',
+    });
+  });
+
+  it('rejects pairing while the previous top cut round is open', () => {
+    expect(
+      validateNext(reduceLog(semisOpen()), 'RoundPaired', topCut(4, [pairing(7, 1, P1, P2)])),
+    ).toMatchObject({ code: 'ROUND_STILL_OPEN' });
+  });
+
+  it('rejects a round number that skips ahead', () => {
+    expect(validateNext(started(), 'RoundPaired', topCut(4, SEMIS))).toMatchObject({
+      code: 'ROUND_OUT_OF_ORDER',
+    });
+  });
+
+  it.each([
+    ['contain a bye', [pairing(5, 1, P1, P4), pairing(6, 2, P2, null)]],
+    ['pair a player twice', [pairing(5, 1, P1, P4), pairing(6, 2, P1, P3)]],
+    ['repeat a table', [pairing(5, 1, P1, P4), pairing(6, 1, P2, P3)]],
+    ['reuse a swiss match id', [pairing(1, 1, P1, P4), pairing(6, 2, P2, P3)]],
+  ])('rejects pairings that %s', (_, pairings) => {
+    expect(validateNext(started(), 'RoundPaired', topCut(3, pairings))).toMatchObject({
+      code: 'INVALID_PAIRINGS',
+    });
+  });
+
+  it('rejects an unknown player', () => {
+    expect(
+      validateNext(started(), 'RoundPaired', topCut(3, [pairing(5, 1, P1, P5)])),
+    ).toMatchObject({ code: 'UNKNOWN_PLAYER' });
+  });
+
+  it('rejects a dropped player', () => {
+    const state = reduceLog(
+      swissDone().add('PlayerDropped', { playerId: P4 }).add('TopCutStarted', { size: 4 }),
+    );
+    expect(validateNext(state, 'RoundPaired', topCut(3, SEMIS))).toMatchObject({
+      code: 'PLAYER_DROPPED',
+    });
+  });
+});
+
+describe('validate: ResultReported (topCut)', () => {
+  it('accepts a win for either player', () => {
+    const state = reduceLog(semisOpen());
+    const winB: MatchResult = { winsA: 1, winsB: 2, draws: 0, kind: 'played' };
+    expect(
+      validateNext(state, 'ResultReported', { matchId: matchId(5), result: WIN_A }),
+    ).toBeNull();
+    expect(validateNext(state, 'ResultReported', { matchId: matchId(5), result: winB })).toBeNull();
+  });
+
+  it.each([
+    ['a played draw', { winsA: 1, winsB: 1, draws: 1, kind: 'played' }],
+    ['an intentional draw', { winsA: 0, winsB: 0, draws: 0, kind: 'intentionalDraw' }],
+    ['an unplayed match', { winsA: 0, winsB: 0, draws: 0, kind: 'unplayed' }],
+  ] as const)('rejects %s', (_, result) => {
+    expect(
+      validateNext(reduceLog(semisOpen()), 'ResultReported', { matchId: matchId(5), result }),
+    ).toMatchObject({ code: 'TOP_CUT_DRAW' });
+  });
+
+  it('still accepts a draw in a swiss round', () => {
+    const draw: MatchResult = { winsA: 1, winsB: 1, draws: 0, kind: 'played' };
+    expect(
+      validateNext(reduceLog(round1Open()), 'ResultReported', {
+        matchId: matchId(1),
+        result: draw,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('validate: TournamentFinished', () => {
+  it('accepts finishing after the top cut rounds are closed', () => {
+    const log = addClosedRound(swissDone().add('TopCutStarted', { size: 4 }), 3, 'topCut', SEMIS);
+    expect(validateNext(reduceLog(log), 'TournamentFinished', {})).toBeNull();
+  });
+
+  it('accepts finishing a tournament without a top cut while running', () => {
+    expect(
+      validateNext(reduceLog(swissDone({ ...TOP4, topCut: 0 })), 'TournamentFinished', {}),
+    ).toBeNull();
+  });
+
+  it('rejects finishing before the configured top cut starts', () => {
+    expect(validateNext(reduceLog(swissDone()), 'TournamentFinished', {})).toMatchObject({
+      code: 'WRONG_STATUS',
+    });
+  });
+
+  it.each(['setup', 'finished'] as const)('rejects finishing while %s', (status) => {
+    const state = { ...reduceLog(swissDone({ ...TOP4, topCut: 0 })), status };
+    expect(validateNext(state, 'TournamentFinished', {})).toMatchObject({ code: 'WRONG_STATUS' });
+  });
+
+  it('rejects finishing while a round is open', () => {
+    expect(validateNext(reduceLog(semisOpen()), 'TournamentFinished', {})).toMatchObject({
+      code: 'ROUND_STILL_OPEN',
     });
   });
 });

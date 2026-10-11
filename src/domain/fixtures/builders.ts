@@ -4,6 +4,7 @@ import type {
   TournamentEvent,
   TournamentEventType,
 } from '../schemas/events';
+import type { MatchResult } from '../schemas/matchResult';
 
 /** Deterministic UUID for tests: `uuid(1)` → `00000000-0000-4000-8000-000000000001`. */
 export function uuid(n: number): string {
@@ -71,4 +72,25 @@ export function registeredLog(count: number, created: TournamentCreatedPayload =
     log.add('PlayerRegistered', { playerId, playerName: `Player ${i + 1}` });
   }
   return log;
+}
+
+export type LogBuilder = ReturnType<typeof logBuilder>;
+
+/** 2-1 win for player A. */
+export const WIN_A: MatchResult = { winsA: 2, winsB: 1, draws: 0, kind: 'played' };
+
+/** Pairs a round, reports `WIN_A` for every non-bye match, then closes it. */
+export function addClosedRound(
+  log: LogBuilder,
+  round: number,
+  stage: 'swiss' | 'topCut',
+  pairings: Pairing[],
+): LogBuilder {
+  log.add('RoundPaired', { round, stage, pairings });
+  for (const p of pairings) {
+    if (p.playerB !== null) {
+      log.add('ResultReported', { matchId: p.matchId, result: WIN_A });
+    }
+  }
+  return log.add('RoundClosed', { round });
 }

@@ -1,5 +1,13 @@
 import { domainError, type DomainError } from './errors';
-import type { ResultReported, RoundClosed, RoundPaired, TournamentEvent } from './schemas/events';
+import type {
+  ResultReported,
+  RoundClosed,
+  RoundPaired,
+  TopCutStarted,
+  TournamentEvent,
+  TournamentFinished,
+} from './schemas/events';
+import { matchOutcome } from './schemas/matchResult';
 import type { TournamentState } from './state';
 
 /**
@@ -74,11 +82,9 @@ export function validate(
     }
 
     case 'RoundPaired':
-      if (event.payload.stage === 'topCut') {
-        // Implemented in step 6 of SPEC 02.
-        throw new Error('validate: topCut RoundPaired is not supported yet');
-      }
-      return validateSwissPairing(state, event);
+      return event.payload.stage === 'swiss'
+        ? validateSwissPairing(state, event)
+        : validateTopCutPairing(state, event);
 
     case 'ResultReported':
       return validateResult(state, event);
@@ -87,11 +93,76 @@ export function validate(
       return validateRoundClosed(state, event);
 
     case 'TopCutStarted':
+      return validateTopCutStarted(state, event);
+
     case 'TournamentFinished':
+      return validateFinished(state, event);
+
     case 'RolledBack':
-      // Implemented in steps 6–7 of SPEC 02.
+      // Implemented in step 7 of SPEC 02.
       throw new Error(`validate: ${event.type} is not supported yet`);
   }
+}
+
+function validateTopCutPairing(state: TournamentState, event: RoundPaired): DomainError | null {
+  if (state.status !== 'topCut') {
+    return wrongStatus(state, event);
+  }
+  const roundError = validateNextRound(state, event);
+  if (roundError !== null) {
+    return roundError;
+  }
+  if (event.payload.pairings.some((p) => p.playerB === null)) {
+    return invalidPairings('Top cut rounds have no byes', event);
+  }
+  return validatePairingStructure(state, event);
+}
+
+function validateTopCutStarted(state: TournamentState, event: TopCutStarted): DomainError | null {
+  if (state.status !== 'running') {
+    return wrongStatus(state, event);
+  }
+  if (state.topCut === 0 || event.payload.size !== state.topCut) {
+    return domainError(
+      'WRONG_STATUS',
+      `The tournament is configured for top cut ${state.topCut}, got ${event.payload.size}`,
+      event.seq,
+    );
+  }
+  const openError = noOpenRound(state, event);
+  if (openError !== null) {
+    return openError;
+  }
+  if (state.rounds.length !== state.swissRounds) {
+    return domainError(
+      'ROUND_OUT_OF_ORDER',
+      `All ${state.swissRounds} swiss rounds must be played before the top cut, got ${state.rounds.length}`,
+      event.seq,
+    );
+  }
+  return null;
+}
+
+function validateFinished(state: TournamentState, event: TournamentFinished): DomainError | null {
+  if (state.status !== 'running' && state.status !== 'topCut') {
+    return wrongStatus(state, event);
+  }
+  if (state.topCut > 0 && state.status !== 'topCut') {
+    return domainError(
+      'WRONG_STATUS',
+      `The tournament has a top cut ${state.topCut}; start it before finishing`,
+      event.seq,
+    );
+  }
+  return noOpenRound(state, event);
+}
+
+function noOpenRound(state: TournamentState, event: TournamentEvent): DomainError | null {
+  const current = state.rounds.at(-1);
+  if (current !== undefined && !current.closed) {
+    return domainError('ROUND_STILL_OPEN', `Round ${current.number} is still open`, event.seq);
+  }
+  return null;
 }
 
 function validateSwissPairing(state: TournamentState, event: RoundPaired): DomainError | null {
@@ -215,6 +286,16 @@ function validateResult(state: TournamentState, event: ResultReported): DomainEr
       `Match ${matchId} is a bye; its result is implicit`,
       event.seq,
     );
+  }
+  if (round.stage === 'topCut') {
+    const outcome = matchOutcome(event.payload.result);
+    if (outcome !== 'A' && outcome !== 'B') {
+      return domainError(
+        'TOP_CUT_DRAW',
+        `A top cut match needs a winner, got ${outcome}`,
+        event.seq,
+      );
+    }
   }
   return null;
 }
