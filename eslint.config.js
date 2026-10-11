@@ -20,5 +20,28 @@ export default tseslint.config(
       globals: globals.browser,
     },
   },
+  {
+    // The domain layer stays framework-free (SPEC 01, SPEC 02).
+    files: ['src/domain/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            { name: 'react', message: 'src/domain must not depend on React.' },
+            { name: 'react-dom', message: 'src/domain must not depend on React.' },
+            { name: 'dexie', message: 'src/domain must not depend on storage.' },
+            { name: 'zustand', message: 'src/domain must not depend on UI state.' },
+          ],
+          patterns: [
+            { group: ['react/*', 'react-dom/*'], message: 'src/domain must not depend on React.' },
+            { group: ['@mantine/*'], message: 'src/domain must not depend on Mantine.' },
+            { group: ['dexie/*'], message: 'src/domain must not depend on storage.' },
+            { group: ['zustand/*'], message: 'src/domain must not depend on UI state.' },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 );
