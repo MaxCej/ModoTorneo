@@ -66,17 +66,28 @@ Data format is plain, documented JSON so it is human-readable and diff-friendly 
 - Additional pairing structures (round robin, double elimination).
 - Charts and dashboards for metagame trends over time.
 
-## Data Model (Draft)
+## Data Model
 
-| Entity       | Key fields                                                   |
-| ------------ | ------------------------------------------------------------ |
-| Player       | id, name, optional external ids                              |
-| Tournament   | id, name, date, format, structure, rounds, status            |
-| Registration | tournamentId, playerId, deckId, dropped                      |
-| Deck         | id, archetype, format, source URL (e.g. Moxfield), card list |
-| Round        | tournamentId, number, pairings                               |
-| Match        | roundId, playerA, playerB, game wins A/B, draws              |
-| Event        | tournamentId, timestamp, type, payload (for rollback/replay) |
+The domain layer lives in `src/domain/` (pure TypeScript, no framework imports). Zod schemas
+and their inferred types are in `src/domain/schemas/`.
+
+Each tournament is stored as a `TournamentDocument` (`{ schemaVersion: 1, id, events }`) holding
+an append-only event log. Tournament state is never stored: it is derived by replaying the
+events. Events carry a gapless `seq`, which orders the log; `at` is informational only.
+
+| Event                | Payload                                       |
+| -------------------- | --------------------------------------------- |
+| `TournamentCreated`  | name, date, location, format, swissRounds     |
+| `PlayerRegistered`   | playerId, playerName, optional deckId         |
+| `PlayerDropped`      | playerId                                      |
+| `RoundPaired`        | round, stage (`swiss` or `topCut`), pairings  |
+| `ResultReported`     | matchId, result (games won A/B, draws, kind)  |
+| `RoundClosed`        | round                                         |
+| `TopCutStarted`      | size (4, 8, 16 or 32)                         |
+| `TournamentFinished` | (none)                                        |
+| `RolledBack`         | toSeq: cancels every effective event after it |
+
+`Player` is a global entity shared across tournaments. Decks are defined in a later spec.
 
 ## External Integrations
 
