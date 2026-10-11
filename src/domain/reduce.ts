@@ -77,7 +77,7 @@ export function apply(
       };
 
     case 'TopCutStarted':
-      return { ...next, status: 'topCut' };
+      return { ...next, status: 'topCut', topCut: event.payload.size };
 
     case 'TournamentFinished':
       return { ...next, status: 'finished' };

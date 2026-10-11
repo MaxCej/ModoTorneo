@@ -21,7 +21,6 @@ export const CREATED_PAYLOAD: TournamentCreatedPayload = {
   location: 'Local store',
   format: 'modern',
   swissRounds: 3,
-  topCut: 4,
 };
 
 export type PayloadOf<T extends TournamentEventType> = Extract<

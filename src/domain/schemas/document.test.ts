@@ -16,7 +16,6 @@ const doc = {
         location: '',
         format: 'pauper',
         swissRounds: 3,
-        topCut: 0,
       },
     },
   ],

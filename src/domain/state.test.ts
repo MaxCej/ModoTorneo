@@ -10,6 +10,7 @@ describe('initialState', () => {
     expect(initialState(TOURNAMENT_ID, created)).toEqual({
       id: TOURNAMENT_ID,
       ...CREATED_PAYLOAD,
+      topCut: null,
       status: 'setup',
       players: {},
       rounds: [],

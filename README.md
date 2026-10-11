@@ -18,7 +18,7 @@ ModoTorneo is hosted as a static site on GitHub Pages. Tournament data can be st
 - Create a tournament: name, date, location, format (Standard, Pioneer, Modern, Legacy, Vintage, Pauper, Commander, Limited, etc.), structure, and number of rounds.
 - Player registration, late entries, drops.
 - Swiss pairings with standard MTG rules (avoid rematches, byes for odd player counts, pair within point groups).
-- Optional top-cut single elimination (Top 4 / Top 8).
+- Optional top-cut single elimination (Top 4 / 8 / 16 / 32), chosen when the swiss rounds end.
 - Match result entry (e.g. 2-0, 2-1, 1-1-1, draws, unplayed/intentional draws).
 - Standings with official tiebreakers: Match Points, Opponents' Match Win % (OMW%), Game Win % (GW%), Opponents' Game Win % (OGW%).
 - Round timer (nice to have).

@@ -23,16 +23,14 @@ const samples: Record<TournamentEventType, Sample> = {
       location: 'Local store',
       format: 'modern',
       swissRounds: 3,
-      topCut: 4,
     },
     invalid: {
-      'topCut of 2': {
+      'unknown format': {
         name: 'FNM',
         date: '2026-10-11',
         location: '',
-        format: 'modern',
+        format: 'brawl',
         swissRounds: 3,
-        topCut: 2,
       },
       'zero swiss rounds': {
         name: 'FNM',
@@ -40,7 +38,6 @@ const samples: Record<TournamentEventType, Sample> = {
         location: '',
         format: 'modern',
         swissRounds: 0,
-        topCut: 0,
       },
       'blank name': {
         name: '  ',
@@ -48,7 +45,6 @@ const samples: Record<TournamentEventType, Sample> = {
         location: '',
         format: 'modern',
         swissRounds: 3,
-        topCut: 0,
       },
     },
   },
@@ -93,8 +89,8 @@ const samples: Record<TournamentEventType, Sample> = {
     invalid: { 'non-integer round': { round: 1.5 } },
   },
   TopCutStarted: {
-    valid: { size: 8 },
-    invalid: { 'size 0': { size: 0 } },
+    valid: { size: 16 },
+    invalid: { 'size 0': { size: 0 }, 'size 6': { size: 6 } },
   },
   TournamentFinished: {
     valid: {},

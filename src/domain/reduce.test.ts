@@ -199,10 +199,10 @@ describe('reduce: swiss rounds', () => {
 });
 
 describe('reduce: top cut and finish', () => {
-  const top4 = { ...CREATED_PAYLOAD, swissRounds: 2, topCut: 4 as const };
+  const twoRounds = { ...CREATED_PAYLOAD, swissRounds: 2 };
   const swissDone = () =>
     addClosedRound(
-      addClosedRound(registeredLog(4, top4), 1, 'swiss', [
+      addClosedRound(registeredLog(4, twoRounds), 1, 'swiss', [
         pairing(1, 1, P1, P2),
         pairing(2, 2, P3, P4),
       ]),
@@ -211,9 +211,13 @@ describe('reduce: top cut and finish', () => {
       [pairing(3, 1, P1, P3), pairing(4, 2, P2, P4)],
     );
 
-  it('moves status to topCut on TopCutStarted', () => {
+  it('starts with no top cut chosen', () => {
+    expect(reduce(swissDone().events, TOURNAMENT_ID).topCut).toBeNull();
+  });
+
+  it('records the chosen size and moves status to topCut on TopCutStarted', () => {
     const { events } = swissDone().add('TopCutStarted', { size: 4 });
-    expect(reduce(events, TOURNAMENT_ID).status).toBe('topCut');
+    expect(reduce(events, TOURNAMENT_ID)).toMatchObject({ status: 'topCut', topCut: 4 });
   });
 
   it('adds top cut rounds with stage topCut and finishes the tournament', () => {
@@ -234,11 +238,11 @@ describe('reduce: top cut and finish', () => {
     expect(state.rounds[3].matches[0].result).toEqual(WIN_A);
   });
 
-  it('finishes a tournament without a top cut from running', () => {
-    const log = addClosedRound(registeredLog(2, { ...top4, topCut: 0 }), 1, 'swiss', [
+  it('finishes without a top cut after stopping swiss early', () => {
+    const log = addClosedRound(registeredLog(2, twoRounds), 1, 'swiss', [
       pairing(1, 1, P1, P2),
     ]).add('TournamentFinished', {});
-    expect(reduce(log.events, TOURNAMENT_ID).status).toBe('finished');
+    expect(reduce(log.events, TOURNAMENT_ID)).toMatchObject({ status: 'finished', topCut: null });
   });
 
   it('throws TOP_CUT_DRAW on replay of a drawn top cut match', () => {

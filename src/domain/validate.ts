@@ -122,37 +122,33 @@ function validateTopCutStarted(state: TournamentState, event: TopCutStarted): Do
   if (state.status !== 'running') {
     return wrongStatus(state, event);
   }
-  if (state.topCut === 0 || event.payload.size !== state.topCut) {
-    return domainError(
-      'WRONG_STATUS',
-      `The tournament is configured for top cut ${state.topCut}, got ${event.payload.size}`,
-      event.seq,
-    );
-  }
   const openError = noOpenRound(state, event);
   if (openError !== null) {
     return openError;
   }
-  if (state.rounds.length !== state.swissRounds) {
+  // Swiss may stop before `swissRounds`, but standings need at least one round.
+  if (state.rounds.length === 0) {
     return domainError(
       'ROUND_OUT_OF_ORDER',
-      `All ${state.swissRounds} swiss rounds must be played before the top cut, got ${state.rounds.length}`,
+      'At least one swiss round must be played before the top cut',
+      event.seq,
+    );
+  }
+  const active = Object.values(state.players).filter((player) => !player.dropped).length;
+  if (event.payload.size > active) {
+    return domainError(
+      'WRONG_STATUS',
+      `Top ${event.payload.size} needs at least ${event.payload.size} active players, got ${active}`,
       event.seq,
     );
   }
   return null;
 }
 
+/** Allowed before all swiss rounds are played and without a top cut. `finished` is terminal. */
 function validateFinished(state: TournamentState, event: TournamentFinished): DomainError | null {
   if (state.status !== 'running' && state.status !== 'topCut') {
     return wrongStatus(state, event);
-  }
-  if (state.topCut > 0 && state.status !== 'topCut') {
-    return domainError(
-      'WRONG_STATUS',
-      `The tournament has a top cut ${state.topCut}; start it before finishing`,
-      event.seq,
-    );
   }
   return noOpenRound(state, event);
 }

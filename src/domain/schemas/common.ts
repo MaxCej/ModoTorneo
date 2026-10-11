@@ -24,6 +24,6 @@ export const FormatSchema = z.enum([
 ]);
 export type Format = z.infer<typeof FormatSchema>;
 
-/** 0 = no top cut. */
-export const TopCutSizeSchema = z.union([z.literal(0), z.literal(4), z.literal(8)]);
+/** Chosen when the top cut starts, never at creation. */
+export const TopCutSizeSchema = z.union([z.literal(4), z.literal(8), z.literal(16), z.literal(32)]);
 export type TopCutSize = z.infer<typeof TopCutSizeSchema>;

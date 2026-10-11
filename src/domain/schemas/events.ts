@@ -35,7 +35,6 @@ export const TournamentCreatedPayloadSchema = z.object({
   location: z.string().trim().max(100),
   format: FormatSchema,
   swissRounds: RoundNumberSchema,
-  topCut: TopCutSizeSchema,
 });
 export type TournamentCreatedPayload = z.infer<typeof TournamentCreatedPayloadSchema>;
 
@@ -66,7 +65,7 @@ export const RoundClosedPayloadSchema = z.object({ round: RoundNumberSchema });
 export type RoundClosedPayload = z.infer<typeof RoundClosedPayloadSchema>;
 
 export const TopCutStartedPayloadSchema = z.object({
-  size: z.union([z.literal(4), z.literal(8)]),
+  size: TopCutSizeSchema,
 });
 export type TopCutStartedPayload = z.infer<typeof TopCutStartedPayloadSchema>;
 

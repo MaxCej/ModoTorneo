@@ -55,11 +55,11 @@ describe('FormatSchema', () => {
 });
 
 describe('TopCutSizeSchema', () => {
-  it.each([0, 4, 8])('accepts %i', (size) => {
+  it.each([4, 8, 16, 32])('accepts %i', (size) => {
     expect(TopCutSizeSchema.safeParse(size).success).toBe(true);
   });
 
-  it.each([2, 16, '4'])('rejects %s', (size) => {
+  it.each([0, 2, 64, '4'])('rejects %s', (size) => {
     expect(TopCutSizeSchema.safeParse(size).success).toBe(false);
   });
 });

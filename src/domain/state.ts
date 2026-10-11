@@ -28,7 +28,7 @@ export type TournamentState = {
   location: string;
   format: Format;
   swissRounds: number;
-  topCut: TopCutSize;
+  topCut: TopCutSize | null; // null until TopCutStarted
   status: TournamentStatus;
   players: Record<Uuid, PlayerEntry>;
   rounds: Round[];
@@ -41,6 +41,7 @@ export function initialState(tournamentId: Uuid, event: TournamentCreated): Tour
   return {
     id: tournamentId,
     ...event.payload,
+    topCut: null,
     status: 'setup',
     players: {},
     rounds: [],
