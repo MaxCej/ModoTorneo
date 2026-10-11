@@ -1,7 +1,8 @@
 import { CorruptLogError, domainError } from './errors';
 import type { Uuid } from './schemas/common';
 import type { TournamentEvent } from './schemas/events';
-import { initialState, type TournamentState } from './state';
+import { IMPLICIT_BYE_RESULT } from './schemas/matchResult';
+import { initialState, type Round, type TournamentState } from './state';
 import { validate } from './validate';
 
 /**
@@ -44,15 +45,48 @@ export function apply(
       return { ...next, players: { ...state.players, [playerId]: entry } };
     }
 
-    case 'RoundPaired':
-    case 'ResultReported':
+    case 'RoundPaired': {
+      const { round, stage, pairings } = event.payload;
+      const matches = pairings.map((pairing) => ({
+        ...pairing,
+        result: pairing.playerB === null ? IMPLICIT_BYE_RESULT : null,
+      }));
+      const status = stage === 'swiss' && state.status === 'setup' ? 'running' : state.status;
+      return {
+        ...next,
+        status,
+        rounds: [...state.rounds, { number: round, stage, closed: false, matches }],
+      };
+    }
+
+    case 'ResultReported': {
+      const { matchId, result } = event.payload;
+      return {
+        ...next,
+        rounds: updateCurrentRound(state, (round) => ({
+          ...round,
+          matches: round.matches.map((m) => (m.matchId === matchId ? { ...m, result } : m)),
+        })),
+      };
+    }
+
     case 'RoundClosed':
+      return {
+        ...next,
+        rounds: updateCurrentRound(state, (round) => ({ ...round, closed: true })),
+      };
+
     case 'TopCutStarted':
     case 'TournamentFinished':
     case 'RolledBack':
-      // Implemented in steps 5–7 of SPEC 02.
+      // Implemented in steps 6–7 of SPEC 02.
       throw new Error(`apply: ${event.type} is not supported yet`);
   }
+}
+
+/** Replaces the last (current) round. */
+function updateCurrentRound(state: TournamentState, update: (round: Round) => Round): Round[] {
+  return state.rounds.map((round, i) => (i === state.rounds.length - 1 ? update(round) : round));
 }
 
 /**

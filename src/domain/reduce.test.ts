@@ -6,12 +6,25 @@ import {
   TOURNAMENT_ID,
   event,
   logBuilder,
+  matchId,
+  pairing,
+  registeredLog,
   uuid,
 } from './fixtures/builders';
 import { apply, reduce } from './reduce';
-import type { TournamentEvent } from './schemas/events';
+import type { Pairing, TournamentEvent } from './schemas/events';
+import { IMPLICIT_BYE_RESULT, type MatchResult } from './schemas/matchResult';
 
-const [P1, P2] = PLAYERS;
+const [P1, P2, P3, P4, P5] = PLAYERS;
+
+const WIN_A: MatchResult = { winsA: 2, winsB: 1, draws: 0, kind: 'played' };
+const WIN_B: MatchResult = { winsA: 0, winsB: 2, draws: 0, kind: 'played' };
+
+const swiss = (round: number, pairings: Pairing[]) => ({
+  round,
+  stage: 'swiss' as const,
+  pairings,
+});
 
 function corruptError(events: TournamentEvent[]): DomainError {
   try {
@@ -82,6 +95,105 @@ describe('reduce', () => {
   it('throws on an event that breaks a rule', () => {
     const { events } = logBuilder().add('PlayerDropped', { playerId: P1 });
     expect(corruptError(events)).toMatchObject({ code: 'UNKNOWN_PLAYER', seq: 2 });
+  });
+});
+
+describe('reduce: swiss rounds', () => {
+  it('adds the paired round and moves status from setup to running', () => {
+    const { events } = registeredLog(4).add(
+      'RoundPaired',
+      swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, P4)]),
+    );
+
+    const state = reduce(events, TOURNAMENT_ID);
+
+    expect(state.status).toBe('running');
+    expect(state.rounds).toEqual([
+      {
+        number: 1,
+        stage: 'swiss',
+        closed: false,
+        matches: [
+          { ...pairing(1, 1, P1, P2), result: null },
+          { ...pairing(2, 2, P3, P4), result: null },
+        ],
+      },
+    ]);
+  });
+
+  it('gives a bye its implicit 2-0 result', () => {
+    const { events } = registeredLog(3).add(
+      'RoundPaired',
+      swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, null)]),
+    );
+
+    const bye = reduce(events, TOURNAMENT_ID).rounds[0].matches[1];
+
+    expect(bye.result).toEqual(IMPLICIT_BYE_RESULT);
+    expect(bye.result).toEqual({ winsA: 2, winsB: 0, draws: 0, kind: 'played' });
+  });
+
+  it('stores a reported result on its match', () => {
+    const { events } = registeredLog(4)
+      .add('RoundPaired', swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, P4)]))
+      .add('ResultReported', { matchId: matchId(2), result: WIN_B });
+
+    const [first, second] = reduce(events, TOURNAMENT_ID).rounds[0].matches;
+
+    expect(first.result).toBeNull();
+    expect(second.result).toEqual(WIN_B);
+  });
+
+  it('replaces the first result when a match is reported twice', () => {
+    const { events } = registeredLog(4)
+      .add('RoundPaired', swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, P4)]))
+      .add('ResultReported', { matchId: matchId(1), result: WIN_A })
+      .add('ResultReported', { matchId: matchId(1), result: WIN_B });
+
+    expect(reduce(events, TOURNAMENT_ID).rounds[0].matches[0].result).toEqual(WIN_B);
+  });
+
+  it('closes the round and accepts the next one', () => {
+    const { events } = registeredLog(4)
+      .add('RoundPaired', swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, P4)]))
+      .add('ResultReported', { matchId: matchId(1), result: WIN_A })
+      .add('ResultReported', { matchId: matchId(2), result: WIN_A })
+      .add('RoundClosed', { round: 1 })
+      .add('RoundPaired', swiss(2, [pairing(3, 1, P1, P3), pairing(4, 2, P2, P4)]));
+
+    const state = reduce(events, TOURNAMENT_ID);
+
+    expect(state.rounds.map((r) => [r.number, r.closed])).toEqual([
+      [1, true],
+      [2, false],
+    ]);
+    expect(state.status).toBe('running');
+  });
+
+  it('registers a late entry for the next round', () => {
+    const { events } = registeredLog(4)
+      .add('RoundPaired', swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, P4)]))
+      .add('PlayerRegistered', { playerId: P5, playerName: 'Late' })
+      .add('ResultReported', { matchId: matchId(1), result: WIN_A })
+      .add('ResultReported', { matchId: matchId(2), result: WIN_A })
+      .add('RoundClosed', { round: 1 })
+      .add(
+        'RoundPaired',
+        swiss(2, [pairing(3, 1, P1, P3), pairing(4, 2, P2, P4), pairing(5, 3, P5, null)]),
+      );
+
+    const state = reduce(events, TOURNAMENT_ID);
+
+    expect(state.players[P5].registeredAtRound).toBe(1);
+    expect(state.rounds[1].matches).toHaveLength(3);
+  });
+
+  it('throws INVALID_PAIRINGS on replay of a pairing that omits an active player', () => {
+    const { events } = registeredLog(4).add(
+      'RoundPaired',
+      swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, null)]),
+    );
+    expect(corruptError(events)).toMatchObject({ code: 'INVALID_PAIRINGS', seq: 6 });
   });
 });
 

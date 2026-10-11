@@ -32,3 +32,6 @@ export function matchOutcome(result: MatchResult): MatchOutcome {
       return 'doubleLoss';
   }
 }
+
+/** Implicit result of a bye (`playerB: null`). Byes are never reported. */
+export const IMPLICIT_BYE_RESULT: MatchResult = { winsA: 2, winsB: 0, draws: 0, kind: 'played' };

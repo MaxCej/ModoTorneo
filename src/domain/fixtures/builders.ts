@@ -1,4 +1,5 @@
 import type {
+  Pairing,
   TournamentCreatedPayload,
   TournamentEvent,
   TournamentEventType,
@@ -22,7 +23,10 @@ export const CREATED_PAYLOAD: TournamentCreatedPayload = {
   topCut: 4,
 };
 
-type PayloadOf<T extends TournamentEventType> = Extract<TournamentEvent, { type: T }>['payload'];
+export type PayloadOf<T extends TournamentEventType> = Extract<
+  TournamentEvent,
+  { type: T }
+>['payload'];
 
 /** Builds one event with a deterministic id and timestamp derived from `seq`. */
 export function event<T extends TournamentEventType>(
@@ -49,4 +53,22 @@ export function logBuilder(created: TournamentCreatedPayload = CREATED_PAYLOAD) 
       return this;
     },
   };
+}
+
+/** Pairing for match `uuid(1000 + n)` at table `table`. `b = null` is a bye. */
+export function pairing(n: number, table: number, a: string, b: string | null): Pairing {
+  return { matchId: matchId(n), table, playerA: a, playerB: b };
+}
+
+export function matchId(n: number): string {
+  return uuid(1000 + n);
+}
+
+/** A log with the first `count` players of `PLAYERS` registered as `Player 1`, `Player 2`… */
+export function registeredLog(count: number, created: TournamentCreatedPayload = CREATED_PAYLOAD) {
+  const log = logBuilder(created);
+  for (const [i, playerId] of PLAYERS.slice(0, count).entries()) {
+    log.add('PlayerRegistered', { playerId, playerName: `Player ${i + 1}` });
+  }
+  return log;
 }
