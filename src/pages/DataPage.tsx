@@ -30,6 +30,7 @@ import {
   type StorageError,
   type TournamentSummary,
 } from '../storage';
+import { DeleteTournamentModal } from './data/DeleteTournamentModal';
 import { ImportConflictModal } from './data/ImportConflictModal';
 
 type ListState =
@@ -37,9 +38,11 @@ type ListState =
   | { status: 'ready'; tournaments: TournamentSummary[] }
   | { status: 'error'; error: StorageError };
 
-/** The result of the last export or import, shown as one alert. */
+/** The result of the last export, import or delete, shown as one alert. */
 type Notice =
   | { kind: 'exportFailed'; error: StorageError }
+  | { kind: 'deleteFailed'; error: StorageError }
+  | { kind: 'deleteConflict'; name: string }
   | { kind: 'importInvalid'; error: DomainError }
   | { kind: 'importFailed'; error: StorageError }
   | { kind: 'imported'; summary: ImportSummary };
@@ -63,6 +66,7 @@ export function DataPage() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<ImportPlan | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<TournamentSummary | null>(null);
   const resetFileRef = useRef<() => void>(null);
 
   useEffect(() => {
@@ -153,6 +157,21 @@ export function DataPage() {
     await apply(plan.value, {});
   }
 
+  async function deleteTournament(summary: TournamentSummary) {
+    setPendingDelete(null);
+    setNotice(null);
+    const result = await getStorage().deleteTournament(summary.id, summary.revision);
+    if (!result.ok) {
+      // CONFLICT: another tab saved it. Say so, so a retry is a deliberate choice.
+      setNotice(
+        result.error.code === 'CONFLICT'
+          ? { kind: 'deleteConflict', name: summary.name }
+          : { kind: 'deleteFailed', error: result.error },
+      );
+    }
+    setReloadKey((key) => key + 1);
+  }
+
   function cancelImport() {
     setPendingPlan(null);
     setBusy(false);
@@ -190,7 +209,10 @@ export function DataPage() {
             {t('data.loadFailed', { code: list.error.code, message: list.error.message })}
           </Alert>
         )}
-        {notice && notice.kind !== 'imported' && (
+        {notice?.kind === 'deleteConflict' && (
+          <Alert color="red">{t('data.deleteConflict', { name: notice.name })}</Alert>
+        )}
+        {notice && notice.kind !== 'imported' && notice.kind !== 'deleteConflict' && (
           <Alert color="red">
             {t(`data.${notice.kind}`, { code: notice.error.code, message: notice.error.message })}
           </Alert>
@@ -220,13 +242,24 @@ export function DataPage() {
                   <Table.Td>{t(`data.statuses.${summary.status}`)}</Table.Td>
                   <Table.Td>{summary.eventCount}</Table.Td>
                   <Table.Td>
-                    <Button
-                      size="xs"
-                      variant="light"
-                      onClick={() => void exportTournament(summary)}
-                    >
-                      {t('data.export')}
-                    </Button>
+                    <Group gap="xs" wrap="nowrap">
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => void exportTournament(summary)}
+                      >
+                        {t('data.export')}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="red"
+                        disabled={busy}
+                        onClick={() => setPendingDelete(summary)}
+                      >
+                        {t('data.delete')}
+                      </Button>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -240,6 +273,13 @@ export function DataPage() {
           conflicts={pendingPlan.items.filter((item) => item.outcome === 'conflict')}
           onCancel={cancelImport}
           onConfirm={(choices) => void apply(pendingPlan, choices)}
+        />
+      )}
+      {pendingDelete && (
+        <DeleteTournamentModal
+          tournament={pendingDelete}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => void deleteTournament(pendingDelete)}
         />
       )}
     </Container>

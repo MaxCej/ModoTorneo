@@ -6,6 +6,15 @@
     "title": "Data",
     "exportAll": "Export all",
     "export": "Export",
+    "delete": "Delete",
+    "deleteFailed": "Delete failed ({{code}}): {{message}}",
+    "deleteConflict": "{{name}} was changed in another tab. The list has been refreshed. Delete again if you still want to remove it.",
+    "deleteModal": {
+      "title": "Delete tournament",
+      "message": "Delete {{name}}? This cannot be undone. Export it first if unsure.",
+      "cancel": "Cancel",
+      "confirm": "Delete"
+    },
     "persistence": {
       "granted": "Persistent storage: granted",
       "notGranted": "Persistent storage: not granted. Export backups regularly.",

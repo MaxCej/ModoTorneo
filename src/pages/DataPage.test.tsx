@@ -1,5 +1,5 @@
 import { MantineProvider } from '@mantine/core';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TournamentDocument } from '../domain';
 import fixture from '../domain/fixtures/top4-8players.json';
@@ -99,7 +99,7 @@ describe('DataPage', () => {
       'Modern',
       'Finished',
       String(fixture.events.length),
-      'Export',
+      'ExportDelete',
     ]);
   });
 
@@ -240,5 +240,104 @@ describe('DataPage import', () => {
     const alert = await screen.findByRole('alert');
     expect(within(alert).getByText('Import finished')).toBeInTheDocument();
     expect(alert.getAttribute('style')).toContain('green');
+  });
+});
+
+describe('DataPage delete', () => {
+  async function openDeleteModal() {
+    await mocks.backend!.saveTournament(fixtureDoc(), null);
+    renderPage();
+    const row = (await screen.findByText('Friday Night Magic')).closest('tr')!;
+    fireEvent.click(within(row).getByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete tournament' });
+    expect(
+      within(dialog).getByText(
+        'Delete Friday Night Magic? This cannot be undone. Export it first if unsure.',
+      ),
+    ).toBeInTheDocument();
+    return dialog;
+  }
+
+  it('keeps the row on cancel', async () => {
+    const dialog = await openDeleteModal();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByText('Friday Night Magic')).toBeInTheDocument();
+    expect(await storedEvents(fixture.id)).toEqual(fixture.events);
+  });
+
+  it('removes the row on confirm and keeps the players', async () => {
+    await mocks.backend!.savePlayer({
+      id: '00000000-0000-4000-8000-000000000101',
+      name: 'Alice',
+      createdAt: '2026-10-11T18:00:02.000Z',
+    });
+    const dialog = await openDeleteModal();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByText('No tournaments stored yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await storedEvents(fixture.id)).toBeNull();
+    const players = await mocks.backend!.listPlayers();
+    expect(players.ok && players.value.map((p) => p.name)).toEqual(['Alice']);
+  });
+
+  it('explains a conflict and keeps the row when the stored revision changed', async () => {
+    const dialog = await openDeleteModal();
+    // Another tab saves in between: the row's revision "1" is now stale.
+    await mocks.backend!.saveTournament(fixtureDoc(), '1');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    expect(
+      await screen.findByText(
+        'Friday Night Magic was changed in another tab. The list has been refreshed. Delete again if you still want to remove it.',
+      ),
+    ).toBeInTheDocument();
+    expect(await storedEvents(fixture.id)).toEqual(fixture.events);
+    expect(screen.getByText('Friday Night Magic')).toBeInTheDocument();
+  });
+});
+
+describe('DataPage delete errors', () => {
+  it('shows the generic error for anything but a conflict', async () => {
+    await mocks.backend!.saveTournament(fixtureDoc(), null);
+    vi.spyOn(mocks.backend!, 'deleteTournament').mockResolvedValue({
+      ok: false,
+      error: { code: 'UNAVAILABLE', message: 'blocked' },
+    });
+    renderPage();
+    const row = (await screen.findByText('Friday Night Magic')).closest('tr')!;
+    fireEvent.click(within(row).getByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete tournament' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByText('Delete failed (UNAVAILABLE): blocked')).toBeInTheDocument();
+  });
+
+  it('retries a delete after a conflict with the refreshed revision', async () => {
+    await mocks.backend!.saveTournament(fixtureDoc(), null);
+    renderPage();
+    const deleteRow = async () => {
+      const row = (await screen.findByText('Friday Night Magic')).closest('tr')!;
+      fireEvent.click(within(row).getByRole('button', { name: 'Delete' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Delete tournament' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    };
+
+    await screen.findByText('Friday Night Magic');
+    const list = vi.spyOn(mocks.backend!, 'listTournaments');
+    await mocks.backend!.saveTournament(fixtureDoc(), '1'); // another tab
+    await deleteRow();
+    await screen.findByText(/was changed in another tab/);
+
+    // Wait for the page's reload to finish, so the row carries revision "2".
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await list.mock.results[0].value;
+    });
+
+    await deleteRow();
+    expect(await screen.findByText('No tournaments stored yet.')).toBeInTheDocument();
   });
 });
