@@ -89,6 +89,43 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
 
 `Player` is a global entity shared across tournaments. Decks are defined in a later spec.
 
+## Storage
+
+The storage layer lives in `src/storage/`. Callers use the `StorageBackend` interface returned by
+`getStorage()`; today it is backed by IndexedDB through Dexie (database `modotorneo`). A GitHub
+backend will implement the same interface later.
+
+- **Tables:** `tournaments` (one row per tournament: the whole `TournamentDocument` plus summary
+  fields recomputed on every save) and `players` (the global player registry).
+- **Validation:** every document is checked with `parseTournamentDocument` on save and on load. A
+  corrupted row is reported as `INVALID_DOCUMENT`, never loaded silently.
+- **Revisions:** each save takes the revision it expects (`null` to create) and returns the new
+  one. A mismatch returns `CONFLICT`, so two tabs cannot overwrite each other.
+- **Persistence:** the app asks the browser for persistent storage on start
+  (`navigator.storage.persist()`). Browsers can still clear site data, so export backups regularly.
+
+### Data page and file formats
+
+The Data page (`/#/data`) lists stored tournaments and handles export, import and delete.
+
+- **One tournament:** `modotorneo-<slug>-<date>.json`, the plain `TournamentDocument`.
+- **Full backup:** `modotorneo-backup-<YYYY-MM-DD>.json`, a dataset file:
+  `{ kind: 'modotorneo-dataset', schemaVersion: 1, exportedAt, players, tournaments }`.
+
+Import accepts either file and always merges; it never wipes local data. For each tournament:
+
+| Compared with the stored log         | Result                                         |
+| ------------------------------------ | ---------------------------------------------- |
+| Not stored yet                       | Added                                          |
+| Identical                            | Unchanged                                      |
+| Stored log is a prefix of the import | Updated (fast-forward)                         |
+| Import is a prefix of the stored log | Not applied: older than local                  |
+| Logs diverge                         | You choose: skip (default), overwrite, or copy |
+
+A copy keeps every event and only gets a new tournament id. Imported tournaments add their missing
+players to the registry; an existing player is never renamed. Deleting a tournament keeps its
+players.
+
 ## External Integrations
 
 | Service      | Use                                     | Notes                                                     |
@@ -112,7 +149,9 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
 | Lint / format         | ESLint (typescript-eslint, react-hooks, jsx-a11y) + Prettier      |
 | Package manager       | pnpm, on Node 24 LTS (`.nvmrc`)                                   |
 | CI / hosting          | GitHub Actions, deployed to GitHub Pages from `main`              |
-| Planned (later specs) | Zod, Zustand, Dexie (IndexedDB), Octokit, `vite-plugin-pwa`       |
+| Validation            | Zod (schemas for every persisted JSON)                            |
+| Local storage         | Dexie (IndexedDB)                                                 |
+| Planned (later specs) | Zustand, Octokit, `vite-plugin-pwa`                               |
 
 ## Development
 
@@ -144,7 +183,8 @@ The roadmap and design decisions live in the specs under `specs/`.
 
 ## Status
 
-Project foundation in place: an empty app that builds, lints, tests and deploys. Domain features are next.
+Domain model and local storage in place: event-sourced tournament documents, IndexedDB storage,
+and a Data page for JSON export/import. Tournament screens are next.
 
 ## License
 
