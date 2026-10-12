@@ -1,4 +1,43 @@
 {
   "app": { "title": "ModoTorneo" },
-  "notFound": { "title": "Page not found", "backHome": "Back to home" }
+  "home": { "dataLink": "Data" },
+  "notFound": { "title": "Page not found", "backHome": "Back to home" },
+  "data": {
+    "title": "Data",
+    "exportAll": "Export all",
+    "export": "Export",
+    "persistence": {
+      "granted": "Persistent storage: granted",
+      "notGranted": "Persistent storage: not granted. Export backups regularly.",
+      "unsupported": "Persistent storage: not supported by this browser. Export backups regularly."
+    },
+    "unavailable": "Local storage is unavailable in this browser.",
+    "loadFailed": "Could not load tournaments ({{code}}): {{message}}",
+    "exportFailed": "Export failed ({{code}}): {{message}}",
+    "empty": "No tournaments stored yet.",
+    "columns": {
+      "name": "Name",
+      "date": "Date",
+      "format": "Format",
+      "status": "Status",
+      "events": "Events",
+      "actions": "Actions"
+    },
+    "formats": {
+      "standard": "Standard",
+      "pioneer": "Pioneer",
+      "modern": "Modern",
+      "legacy": "Legacy",
+      "vintage": "Vintage",
+      "pauper": "Pauper",
+      "commander": "Commander",
+      "limited": "Limited"
+    },
+    "statuses": {
+      "setup": "Setup",
+      "running": "Running",
+      "topCut": "Top cut",
+      "finished": "Finished"
+    }
+  }
 }
