@@ -38,11 +38,37 @@ function fixtureDoc(): TournamentDocument {
 }
 
 function renderPage() {
-  render(
-    <MantineProvider>
+  // env="test" turns off transitions and portals, so the modal renders at once.
+  return render(
+    <MantineProvider env="test">
       <DataPage />
     </MantineProvider>,
   );
+}
+
+/** The fixture with one event's `at` changed: same tournament, diverged log. */
+function divergedFixture(): TournamentDocument {
+  const doc = fixtureDoc();
+  doc.events[20] = { ...doc.events[20], at: '2026-10-12T09:00:00.000Z' };
+  return doc;
+}
+
+function jsonFile(value: unknown, name = 'import.json') {
+  return new File([typeof value === 'string' ? value : JSON.stringify(value)], name, {
+    type: 'application/json',
+  });
+}
+
+/** Picks a file through the hidden input of the "Import file" button. */
+async function pickFile(container: HTMLElement, file: File) {
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Import file' })).toBeEnabled());
+  const input = container.querySelector('input[type="file"]')!;
+  fireEvent.change(input, { target: { files: [file] } });
+}
+
+async function storedEvents(id: string) {
+  const loaded = await mocks.backend!.loadTournament(id);
+  return loaded.ok ? loaded.value.doc.events : null;
 }
 
 beforeEach(() => {
@@ -124,5 +150,95 @@ describe('DataPage', () => {
       await screen.findByText('Local storage is unavailable in this browser.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Export all' })).toBeDisabled();
+  });
+});
+
+describe('DataPage import', () => {
+  it('shows the domain error of an invalid file and saves nothing', async () => {
+    const { container } = renderPage();
+    await pickFile(container, jsonFile('{ not json'));
+
+    const alert = await screen.findByText(/^Invalid file \(INVALID_SCHEMA\):/);
+    expect(alert).toBeInTheDocument();
+    const list = await mocks.backend!.listTournaments();
+    expect(list.ok && list.value).toEqual([]);
+  });
+
+  it('imports the fixture and adds its row', async () => {
+    const { container } = renderPage();
+    await screen.findByText('No tournaments stored yet.');
+    await pickFile(container, jsonFile(fixture));
+
+    expect(await screen.findByText('Friday Night Magic')).toBeInTheDocument();
+    expect(screen.getByText('Added: 1')).toBeInTheDocument();
+    expect(screen.getByText('Players added: 8')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['Skip', 'Skipped: 1', fixture.events],
+    ['Overwrite', 'Overwritten: 1', divergedFixture().events],
+    ['Copy', 'Copied: 1', fixture.events],
+  ])('resolves a conflict with %s', async (choice, summaryLine, expectedEvents) => {
+    await mocks.backend!.saveTournament(fixtureDoc(), null);
+    const { container } = renderPage();
+    await screen.findByText('Friday Night Magic');
+    await pickFile(container, jsonFile(divergedFixture()));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Import conflicts' });
+    const group = within(dialog).getByRole('group', { name: 'Friday Night Magic' });
+    const count = fixture.events.length;
+    expect(
+      within(group).getByText(`Stored: ${count} events. Imported: ${count} events.`),
+    ).toBeInTheDocument();
+    fireEvent.click(within(group).getByRole('radio', { name: choice }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Import' }));
+
+    expect(await screen.findByText(summaryLine)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await storedEvents(fixture.id)).toEqual(expectedEvents);
+    if (choice === 'Copy') {
+      expect(await screen.findAllByText('Friday Night Magic')).toHaveLength(2);
+    }
+  });
+
+  it('saves nothing when the import is cancelled', async () => {
+    await mocks.backend!.saveTournament(fixtureDoc(), null);
+    const { container } = renderPage();
+    await screen.findByText('Friday Night Magic');
+    await pickFile(container, jsonFile(divergedFixture()));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Import conflicts' });
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Overwrite' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel import' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByText('Import finished')).not.toBeInTheDocument();
+    expect(await storedEvents(fixture.id)).toEqual(fixture.events);
+    expect(screen.getByRole('button', { name: 'Import file' })).toBeEnabled();
+  });
+
+  it('turns the summary yellow when a save fails', async () => {
+    vi.spyOn(mocks.backend!, 'saveTournament').mockResolvedValue({
+      ok: false,
+      error: { code: 'CONFLICT', message: 'saved in another tab' },
+    });
+    const { container } = renderPage();
+    await pickFile(container, jsonFile(fixture));
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText('Import finished with errors')).toBeInTheDocument();
+    expect(
+      within(alert).getByText('Could not save Friday Night Magic (CONFLICT): saved in another tab'),
+    ).toBeInTheDocument();
+    expect(alert.getAttribute('style')).toContain('yellow');
+  });
+
+  it('keeps the summary green when every save succeeds', async () => {
+    const { container } = renderPage();
+    await pickFile(container, jsonFile(fixture));
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText('Import finished')).toBeInTheDocument();
+    expect(alert.getAttribute('style')).toContain('green');
   });
 });
