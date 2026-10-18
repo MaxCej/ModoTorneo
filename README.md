@@ -83,6 +83,7 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
 | `PlayerDropped`            | playerId                                                        |
 | `TournamentDetailsChanged` | any of name, date, location, format, swissRounds (at least one) |
 | `RoundPaired`              | round, stage (`swiss` or `topCut`), pairings                    |
+| `PlayersSwapped`           | round, playerA, playerB: trade seats in the open swiss round    |
 | `ResultReported`           | matchId, result (games won A/B, draws, kind)                    |
 | `RoundClosed`              | round                                                           |
 | `TopCutStarted`            | size (4, 8, 16 or 32)                                           |
@@ -93,10 +94,29 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
   active players (MTR Appendix E, `src/domain/swissRounds.ts`). Late entries do not change it.
 - **Editing details:** format can change only in setup. Swiss rounds can change until swiss
   ends, but never below the rounds already paired.
+- **Swapping players:** two active players trade seats in the open swiss round, only while
+  neither of their matches has a reported result. A swap may move the bye.
 - **Guests:** a `PlayerRegistered` with `guest: true` plays in that tournament only. Guests are
   never added to the global player registry.
 
 `Player` is a global entity shared across tournaments. Decks are defined in a later spec.
+
+## Pairing and scoring
+
+- **Match points (MTR):** win 3, draw or intentional draw 1, loss 0. A bye is a 2-0 win (3
+  points). An unplayed match is a loss for both players. Top cut rounds do not count
+  (`src/domain/points.ts`).
+- **Match length:** swiss matches are best of three. A custom result allows at most 2 wins
+  per player and 3 games in total (`fitsBestOf` in `src/domain/schemas/matchResult.ts`).
+- **Swiss pairing** (`src/domain/pairing.ts`):
+  - Round 1 is random. Later rounds pair players with the same match points, in random
+    order, and the odd player of a group floats down to the next one.
+  - Rematches are avoided by backtracking. When no round without rematches exists, the
+    pairing with the fewest is used and the round shows a warning.
+  - With an odd number of players, the bye goes to the lowest match points among players
+    without a bye (random among ties).
+  - Tables are numbered from the top: the highest points play at table 1, and the bye gets
+    the last table.
 
 ## Screens
 
@@ -110,6 +130,15 @@ lazily, one chunk each.
 - **Tournament (`/#/tournaments/<id>`):**
   - **Details:** inline edit of the fields the current status allows, and a "Recommended rounds"
     table with the row for the current player count highlighted.
+  - **Round controls:** "Pair round N" (random round 1, then by match points), "Close round N"
+    once every result is in, and "Finish tournament" (with confirmation) after any closed round.
+  - **Tabs:** "Players" (registration) and one tab per round. The open round opens by default.
+  - **Round tab:** one row per match with one-click results (2-0, 2-1, 1-2, 0-2, 1-1-1, ID,
+    Unplayed) or a custom best-of-three score, always from the first player's side. A result
+    can be changed until the round is closed. Each player shows points and W-L-D from earlier
+    rounds. "By player" lists everyone alphabetically with table and opponent. "Swap players"
+    trades two players' seats in matches without a result. Rematches and repeated byes show as
+    warnings.
   - **Registration:** the player registry on the left, registered players on the right. Click a
     player (or filter and press Enter) to register them; "Remove" undoes a registration in setup.
     "New player" adds to the registry and registers; "Add guest" registers for this tournament
@@ -217,8 +246,9 @@ The roadmap and design decisions live in the specs under `specs/`.
 
 ## Status
 
-Tournaments can be created, edited and filled with players (registry players and guests), with
-late entries and drops, all autosaved to IndexedDB. Swiss pairings and result entry are next.
+A full swiss event runs in the browser: registration (registry players and guests, late entries,
+drops), swiss pairings, result entry, swaps and finishing, all autosaved to IndexedDB. Standings
+and tiebreakers are next.
 
 ## License
 

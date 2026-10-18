@@ -111,6 +111,67 @@
         "cancel": "Cancel",
         "confirm": "Drop"
       }
+    },
+    "rounds": {
+      "tabPlayers": "Players",
+      "tabRound": "Round {{round}}",
+      "pair": "Pair round {{round}}",
+      "needPlayers": "Register at least 2 players",
+      "pairFailed": "Could not pair the round ({{code}}): {{message}}",
+      "table": "Table {{table}}",
+      "tableLabel": "Table {{table}}",
+      "bye": "Bye",
+      "playerLabel": "{{name}} ({{points}} pts, {{wins}}-{{losses}}-{{draws}})",
+      "noResult": "No result",
+      "score": "{{winsA}}-{{winsB}}",
+      "scoreWithDraws": "{{winsA}}-{{winsB}}-{{draws}}",
+      "presets": {
+        "win20": "2-0",
+        "win21": "2-1",
+        "loss12": "1-2",
+        "loss02": "0-2",
+        "draw111": "1-1-1",
+        "intentionalDraw": "ID",
+        "unplayed": "Unplayed"
+      },
+      "custom": "Custom",
+      "customWinsA": "Wins A",
+      "customWinsB": "Wins B",
+      "customDraws": "Draws",
+      "customSave": "Save",
+      "customCancel": "Cancel",
+      "customInvalid": "Enter a best-of-three result: at most 2 wins each and 3 games in total.",
+      "close": "Close round {{round}}",
+      "progress": "{{reported}} of {{total}} results",
+      "finish": "Finish tournament",
+      "finishModal": {
+        "title": "Finish tournament",
+        "message": "Finish {{name}}? Results can no longer be entered or changed.",
+        "cancel": "Cancel",
+        "confirm": "Finish"
+      },
+      "viewLabel": "View",
+      "byTable": "By table",
+      "byPlayer": "By player",
+      "byPlayerLabel": "Round {{round}} by player",
+      "columns": {
+        "player": "Player",
+        "table": "Table",
+        "opponent": "Opponent",
+        "result": "Result"
+      },
+      "warnings": {
+        "title": "Check these pairings",
+        "rematch": "Rematch at table {{table}}: {{nameA}} vs {{nameB}}.",
+        "repeatBye": "{{name}} already had a bye."
+      },
+      "swap": {
+        "open": "Swap players",
+        "first": "First player",
+        "second": "Second player",
+        "confirm": "Swap",
+        "cancel": "Cancel"
+      }
     }
   },
   "notFound": {

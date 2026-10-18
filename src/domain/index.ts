@@ -13,6 +13,14 @@ export { CorruptLogError, type DomainError, type DomainErrorCode } from './error
 export { newId } from './ids';
 export { parseImportFile, type ParsedImport } from './importFile';
 export { compareLogs, playersFromDocument, type LogComparison } from './merge';
+export {
+  pairingWarnings,
+  pairSwissRound,
+  SEARCH_BUDGET,
+  type PairingDeps,
+  type PairingWarning,
+} from './pairing';
+export { matchPoints, playerRecords, type PlayerRecord } from './points';
 export { effectiveEvents, reduce, stateAt } from './reduce';
 export { err, ok, type Result } from './result';
 export {
@@ -23,7 +31,7 @@ export {
   type TournamentState,
   type TournamentStatus,
 } from './state';
-export { editableDetails, type DetailField } from './validate';
+export { editableDetails, resolvedSwissRounds, type DetailField } from './validate';
 export {
   SWISS_ROUNDS_TABLE,
   recommendedSwissRounds,

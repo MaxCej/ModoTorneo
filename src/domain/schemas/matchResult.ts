@@ -35,3 +35,20 @@ export function matchOutcome(result: MatchResult): MatchOutcome {
 
 /** Implicit result of a bye (`playerB: null`). Byes are never reported. */
 export const IMPLICIT_BYE_RESULT: MatchResult = { winsA: 2, winsB: 0, draws: 0, kind: 'played' };
+
+/**
+ * Whether a result fits a best-of-`bestOf` match: at most `(bestOf + 1) / 2` wins per player
+ * and at most `bestOf` games in total (draws included). Intentional draws and unplayed matches
+ * always fit. Stricter than `MatchResultSchema`, which stays loose for stored and imported data.
+ */
+export function fitsBestOf(result: MatchResult, bestOf: 3 | 5): boolean {
+  if (result.kind !== 'played') {
+    return true;
+  }
+  const maxWins = (bestOf + 1) / 2;
+  return (
+    result.winsA <= maxWins &&
+    result.winsB <= maxWins &&
+    result.winsA + result.winsB + result.draws <= bestOf
+  );
+}

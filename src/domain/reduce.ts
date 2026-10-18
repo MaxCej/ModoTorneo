@@ -79,6 +79,23 @@ export function apply(
       };
     }
 
+    case 'PlayersSwapped': {
+      // Tables, match ids and results stay; a bye's new holder lands in playerA.
+      const { playerA, playerB } = event.payload;
+      const other = (id: Uuid) => (id === playerA ? playerB : id === playerB ? playerA : id);
+      return {
+        ...next,
+        rounds: updateCurrentRound(state, (round) => ({
+          ...round,
+          matches: round.matches.map((m) => ({
+            ...m,
+            playerA: other(m.playerA),
+            playerB: m.playerB === null ? null : other(m.playerB),
+          })),
+        })),
+      };
+    }
+
     case 'ResultReported': {
       const { matchId, result } = event.payload;
       return {

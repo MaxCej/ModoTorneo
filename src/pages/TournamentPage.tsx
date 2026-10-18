@@ -1,15 +1,38 @@
-import { Alert, Anchor, Center, Container, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Center,
+  Container,
+  Group,
+  Loader,
+  Stack,
+  Tabs,
+  Text,
+  Title,
+} from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
-import type { Command } from '../domain';
+import type { Command, TournamentState } from '../domain';
 import { usePlayersStore } from '../store/playersStore';
 import { useTournamentStore, type SaveNotice } from '../store/tournamentStore';
 import { DetailsCard } from './tournament/DetailsCard';
 import { RegistrationPanel } from './tournament/RegistrationPanel';
+import { RoundControls } from './tournament/RoundControls';
+import { RoundPanel } from './tournament/RoundPanel';
 
 /** The panel whose command was rejected last, so its error shows under it. */
-type Panel = 'details' | 'registration';
+type Panel = 'details' | 'registration' | 'rounds' | 'round';
+
+const PLAYERS_TAB = 'players';
+const roundTab = (round: number) => `round-${round}`;
+
+/** The open round, else the last round, else "Players". */
+function defaultTab(state: TournamentState): string {
+  const open = state.rounds.find((round) => !round.closed);
+  const last = state.rounds.at(-1);
+  return open ? roundTab(open.number) : last ? roundTab(last.number) : PLAYERS_TAB;
+}
 
 export function TournamentPage() {
   const { t } = useTranslation();
@@ -23,6 +46,15 @@ export function TournamentPage() {
   const players = usePlayersStore((s) => s.players);
   const playersError = usePlayersStore((s) => s.error);
   const [errorPanel, setErrorPanel] = useState<Panel | null>(null);
+  // The tab the organizer picked, for this tournament only. Until then the default follows
+  // the rounds.
+  const [selection, setSelection] = useState<{ id: string; tab: string } | null>(null);
+  const selectedTab = selection !== null && selection.id === id ? selection.tab : null;
+  const selectTab = (tab: string | null) => {
+    if (tab !== null && id !== undefined) {
+      setSelection({ id, tab });
+    }
+  };
 
   useEffect(() => {
     if (id !== undefined) {
@@ -82,14 +114,44 @@ export function TournamentPage() {
             <DetailsCard state={state} onDispatch={dispatchFrom('details')} />
             {commandError && errorPanel === 'details' && <CommandErrorAlert />}
 
-            <RegistrationPanel
+            <RoundControls
               state={state}
-              players={players}
-              playersError={playersError}
-              onAddPlayer={(name) => usePlayersStore.getState().addPlayer(name)}
-              onDispatch={dispatchFrom('registration')}
+              onDispatch={dispatchFrom('rounds')}
+              onPaired={(round) => selectTab(roundTab(round))}
             />
-            {commandError && errorPanel === 'registration' && <CommandErrorAlert />}
+            {commandError && errorPanel === 'rounds' && <CommandErrorAlert />}
+
+            <Tabs value={selectedTab ?? defaultTab(state)} onChange={selectTab} keepMounted={false}>
+              <Tabs.List>
+                <Tabs.Tab value={PLAYERS_TAB}>{t('tournament.rounds.tabPlayers')}</Tabs.Tab>
+                {state.rounds.map((round) => (
+                  <Tabs.Tab key={round.number} value={roundTab(round.number)}>
+                    {t('tournament.rounds.tabRound', { round: round.number })}
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+
+              <Tabs.Panel value={PLAYERS_TAB} pt="md">
+                <Stack>
+                  <RegistrationPanel
+                    state={state}
+                    players={players}
+                    playersError={playersError}
+                    onAddPlayer={(name) => usePlayersStore.getState().addPlayer(name)}
+                    onDispatch={dispatchFrom('registration')}
+                  />
+                  {commandError && errorPanel === 'registration' && <CommandErrorAlert />}
+                </Stack>
+              </Tabs.Panel>
+              {state.rounds.map((round) => (
+                <Tabs.Panel key={round.number} value={roundTab(round.number)} pt="md">
+                  <Stack>
+                    <RoundPanel state={state} round={round} onDispatch={dispatchFrom('round')} />
+                    {commandError && errorPanel === 'round' && <CommandErrorAlert />}
+                  </Stack>
+                </Tabs.Panel>
+              ))}
+            </Tabs>
           </>
         )}
       </Stack>

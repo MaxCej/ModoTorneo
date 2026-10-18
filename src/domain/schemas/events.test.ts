@@ -108,6 +108,14 @@ const samples: Record<TournamentEventType, Sample> = {
       'round 0': { round: 0, stage: 'swiss', pairings: [] },
     },
   },
+  PlayersSwapped: {
+    valid: { round: 2, playerA: P1, playerB: P2 },
+    invalid: {
+      'round 0': { round: 0, playerA: P1, playerB: P2 },
+      'invalid playerB': { round: 1, playerA: P1, playerB: 'bruno' },
+      'missing playerB': { round: 1, playerA: P1 },
+    },
+  },
   ResultReported: {
     valid: { matchId: M1, result: { winsA: 2, winsB: 1, draws: 0, kind: 'played' } },
     invalid: {

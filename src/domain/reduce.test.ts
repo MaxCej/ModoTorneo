@@ -318,6 +318,61 @@ describe('reduce: auto swiss rounds', () => {
   });
 });
 
+describe('reduce: PlayersSwapped', () => {
+  /** 5 players, round 1 open: P1-P2 (match 1), P3-P4 (match 2), P5 on a bye (match 3). */
+  const round1 = () =>
+    registeredLog(5).add(
+      'RoundPaired',
+      swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, P4), pairing(3, 3, P5, null)]),
+    );
+  const swap = (playerA: string, playerB: string) => ({ round: 1, playerA, playerB });
+  const matches = (state: TournamentState) =>
+    state.rounds[0].matches.map(({ matchId: id, table, playerA, playerB, result }) => ({
+      id,
+      table,
+      playerA,
+      playerB,
+      result,
+    }));
+
+  it('swaps two players between tables and keeps tables, match ids and results', () => {
+    const state = reduce(round1().add('PlayersSwapped', swap(P1, P4)).events, TOURNAMENT_ID);
+    expect(matches(state)).toEqual([
+      { id: matchId(1), table: 1, playerA: P4, playerB: P2, result: null },
+      { id: matchId(2), table: 2, playerA: P3, playerB: P1, result: null },
+      { id: matchId(3), table: 3, playerA: P5, playerB: null, result: IMPLICIT_BYE_RESULT },
+    ]);
+  });
+
+  it('moves a seated player into the bye and the bye player to the table', () => {
+    const state = reduce(round1().add('PlayersSwapped', swap(P2, P5)).events, TOURNAMENT_ID);
+    expect(matches(state)).toEqual([
+      { id: matchId(1), table: 1, playerA: P1, playerB: P5, result: null },
+      { id: matchId(2), table: 2, playerA: P3, playerB: P4, result: null },
+      { id: matchId(3), table: 3, playerA: P2, playerB: null, result: IMPLICIT_BYE_RESULT },
+    ]);
+  });
+
+  it('lets the swapped round be reported and closed', () => {
+    const log = round1()
+      .add('PlayersSwapped', swap(P5, P3))
+      .add('ResultReported', { matchId: matchId(1), result: WIN_A })
+      .add('ResultReported', { matchId: matchId(2), result: WIN_B })
+      .add('RoundClosed', { round: 1 });
+    const state = reduce(log.events, TOURNAMENT_ID);
+    expect(state.rounds[0]).toMatchObject({ closed: true });
+    expect(matches(state)[1]).toMatchObject({ playerA: P5, playerB: P4, result: WIN_B });
+    expect(matches(state)[2]).toMatchObject({ playerA: P3, playerB: null });
+  });
+
+  it('throws INVALID_SWAP on replay of a swap into a reported match', () => {
+    const { events } = round1()
+      .add('ResultReported', { matchId: matchId(1), result: WIN_A })
+      .add('PlayersSwapped', swap(P1, P3));
+    expect(corruptError(events)).toMatchObject({ code: 'INVALID_SWAP' });
+  });
+});
+
 describe('reduce: TournamentDetailsChanged', () => {
   it('changes only the fields present in the payload', () => {
     const { events } = logBuilder()

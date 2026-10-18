@@ -9,7 +9,10 @@ import {
   TOURNAMENT_ID,
   addClosedRound,
   pairing,
+  playerIds,
   registeredLog,
+  runningDoc,
+  swissHistory,
   uuid,
 } from '../domain/fixtures/builders';
 import { DexieBackend, type StorageBackend } from '../storage';
@@ -46,7 +49,8 @@ beforeEach(() => {
 });
 
 function autoDoc(players: number): TournamentDocument {
-  const log = registeredLog(players, { ...CREATED_PAYLOAD, swissRounds: null });
+  // swissHistory with no rounds: any number of players, registered as `Player 1`…
+  const log = swissHistory(playerIds(players), [], { ...CREATED_PAYLOAD, swissRounds: null });
   return { schemaVersion: 1, id: TOURNAMENT_ID, events: log.events };
 }
 
@@ -210,6 +214,83 @@ describe('TournamentPage', () => {
     expect(stored.ok && Object.values(stored.value.state.players)).toMatchObject([
       { playerName: 'Visitor', guest: true },
     ]);
+  });
+
+  it('starts on the Players tab when there are no rounds', async () => {
+    await backend.saveTournament(autoDoc(2), null);
+    renderPage();
+    expect(await screen.findByRole('tab', { name: 'Players' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.queryByRole('tab', { name: 'Round 1' })).not.toBeInTheDocument();
+  });
+
+  it('pairs round 1 for 9 players: a Round 1 tab, 5 matches with one bye, 4 auto rounds', async () => {
+    await backend.saveTournament(autoDoc(9), null);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Pair round 1' }));
+
+    expect(screen.getByRole('tab', { name: 'Round 1' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('button', { name: /^Pair round/ })).not.toBeInTheDocument();
+    await idle();
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    if (!stored.ok) throw new Error('expected ok');
+    const paired = stored.value.doc.events.filter((e) => e.type === 'RoundPaired');
+    expect(paired).toHaveLength(1);
+    const { matches } = stored.value.state.rounds[0];
+    expect(matches).toHaveLength(5);
+    expect(matches.filter((m) => m.playerB === null)).toHaveLength(1);
+    expect(stored.value.state.swissRounds).toBe(4);
+  });
+
+  it('opens on the open round tab when a round is open', async () => {
+    await backend.saveTournament(runningDoc(4), null);
+    renderPage();
+    expect(await screen.findByRole('tab', { name: 'Round 1' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  it('closes the last round, finishes, and leaves every tab read-only', async () => {
+    const [a, b, c, d] = playerIds(4);
+    const log = swissHistory(playerIds(4), [], { ...CREATED_PAYLOAD, swissRounds: 1 }).add(
+      'RoundPaired',
+      {
+        round: 1,
+        stage: 'swiss',
+        pairings: [pairing(1, 1, a, b), pairing(2, 2, c, d)],
+      },
+    );
+    await backend.saveTournament({ schemaVersion: 1, id: TOURNAMENT_ID, events: log.events }, null);
+    renderPage();
+
+    const table = (n: number) => within(screen.getByRole('group', { name: `Table ${n}` }));
+    await screen.findByRole('group', { name: 'Table 1' });
+    fireEvent.click(table(1).getByRole('button', { name: '2-0' }));
+    fireEvent.click(table(2).getByRole('button', { name: '1-2' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Close round 1' }));
+    expect(table(1).queryByRole('button')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish tournament' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Finish tournament' })).getByRole('button', {
+        name: 'Finish',
+      }),
+    );
+
+    expect(screen.queryByRole('button', { name: 'Finish tournament' })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Table 1' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Players' }));
+    expect(screen.queryByRole('textbox', { name: 'New player' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Add guest' })).not.toBeInTheDocument();
+
+    await idle();
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    expect(stored.ok && stored.value.state.status).toBe('finished');
+    expect(stored.ok && stored.value.doc.events.at(-1)?.type).toBe('TournamentFinished');
   });
 
   it('shows the conflict notice and clears it with the close button', async () => {

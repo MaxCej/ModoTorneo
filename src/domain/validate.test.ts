@@ -461,6 +461,100 @@ describe('validate: ResultReported', () => {
   });
 });
 
+describe('validate: PlayersSwapped', () => {
+  const swap = (round: number, playerA: string, playerB: string) => ({ round, playerA, playerB });
+
+  /** 5 players, round 1 open: P1-P2 (match 1), P3-P4 (match 2), P5 on a bye (match 3). */
+  const round1OpenWithBye = () =>
+    registeredLog(5).add(
+      'RoundPaired',
+      swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, P4), pairing(3, 3, P5, null)]),
+    );
+
+  it('accepts two players from different unreported matches', () => {
+    expect(validateNext(reduceLog(round1Open()), 'PlayersSwapped', swap(1, P1, P3))).toBeNull();
+    expect(validateNext(reduceLog(round1Open()), 'PlayersSwapped', swap(1, P4, P2))).toBeNull();
+  });
+
+  it.each([
+    ['into the bye', P1],
+    ['as player B into the bye', P2],
+  ])('accepts a swap %s', (_, seated) => {
+    const state = reduceLog(round1OpenWithBye());
+    expect(validateNext(state, 'PlayersSwapped', swap(1, P5, seated))).toBeNull();
+    expect(validateNext(state, 'PlayersSwapped', swap(1, seated, P5))).toBeNull();
+  });
+
+  it('accepts a swap with the bye after the other matches are reported', () => {
+    const state = reduceLog(
+      round1OpenWithBye().add('ResultReported', { matchId: matchId(2), result: WIN_A }),
+    );
+    expect(validateNext(state, 'PlayersSwapped', swap(1, P1, P5))).toBeNull();
+  });
+
+  it.each([
+    ['in setup', () => registeredLog(4)],
+    ['once the round is closed', round1Closed],
+  ])('returns ROUND_CLOSED %s', (_, build) => {
+    expect(validateNext(reduceLog(build()), 'PlayersSwapped', swap(1, P1, P3))).toMatchObject({
+      code: 'ROUND_CLOSED',
+    });
+  });
+
+  it('returns ROUND_OUT_OF_ORDER for a round that is not the open one', () => {
+    expect(validateNext(reduceLog(round1Open()), 'PlayersSwapped', swap(2, P1, P3))).toMatchObject({
+      code: 'ROUND_OUT_OF_ORDER',
+    });
+  });
+
+  it('returns WRONG_STATUS in a top cut round', () => {
+    expect(validateNext(reduceLog(semisOpen()), 'PlayersSwapped', swap(3, P1, P2))).toMatchObject({
+      code: 'WRONG_STATUS',
+    });
+  });
+
+  it('returns UNKNOWN_PLAYER for a player who is not paired in the round', () => {
+    const late = uuid(150);
+    const state = reduceLog(
+      round1Open().add('PlayerRegistered', { playerId: late, playerName: 'L' }),
+    );
+    expect(validateNext(state, 'PlayersSwapped', swap(1, P1, late))).toMatchObject({
+      code: 'UNKNOWN_PLAYER',
+    });
+    expect(validateNext(state, 'PlayersSwapped', swap(1, uuid(999), P1))).toMatchObject({
+      code: 'UNKNOWN_PLAYER',
+    });
+  });
+
+  it('returns PLAYER_DROPPED for a dropped player', () => {
+    const state = reduceLog(round1Open().add('PlayerDropped', { playerId: P3 }));
+    expect(validateNext(state, 'PlayersSwapped', swap(1, P1, P3))).toMatchObject({
+      code: 'PLAYER_DROPPED',
+    });
+  });
+
+  it.each([
+    ['the same player twice', P1, P1],
+    ['two opponents in the same match', P1, P2],
+  ])('returns INVALID_SWAP for %s', (_, a, b) => {
+    expect(validateNext(reduceLog(round1Open()), 'PlayersSwapped', swap(1, a, b))).toMatchObject({
+      code: 'INVALID_SWAP',
+    });
+  });
+
+  it.each([
+    ['the first', P1, P3],
+    ['the second', P3, P1],
+  ])('returns INVALID_SWAP when %s match has a result', (_, a, b) => {
+    const state = reduceLog(
+      round1Open().add('ResultReported', { matchId: matchId(1), result: WIN_A }),
+    );
+    expect(validateNext(state, 'PlayersSwapped', swap(1, a, b))).toMatchObject({
+      code: 'INVALID_SWAP',
+    });
+  });
+});
+
 describe('validate: RoundClosed', () => {
   it('accepts closing the open round once every match has a result', () => {
     const log = round1Open()

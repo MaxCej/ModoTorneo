@@ -77,6 +77,14 @@ export const RoundPairedPayloadSchema = z.object({
 });
 export type RoundPairedPayload = z.infer<typeof RoundPairedPayloadSchema>;
 
+/** Two players in the open swiss round trade seats. */
+export const PlayersSwappedPayloadSchema = z.object({
+  round: RoundNumberSchema,
+  playerA: UuidSchema,
+  playerB: UuidSchema,
+});
+export type PlayersSwappedPayload = z.infer<typeof PlayersSwappedPayloadSchema>;
+
 export const ResultReportedPayloadSchema = z.object({
   matchId: UuidSchema,
   result: MatchResultSchema,
@@ -115,6 +123,7 @@ export const TournamentDetailsChangedSchema = eventSchema(
   TournamentDetailsChangedPayloadSchema,
 );
 export const RoundPairedSchema = eventSchema('RoundPaired', RoundPairedPayloadSchema);
+export const PlayersSwappedSchema = eventSchema('PlayersSwapped', PlayersSwappedPayloadSchema);
 export const ResultReportedSchema = eventSchema('ResultReported', ResultReportedPayloadSchema);
 export const RoundClosedSchema = eventSchema('RoundClosed', RoundClosedPayloadSchema);
 export const TopCutStartedSchema = eventSchema('TopCutStarted', TopCutStartedPayloadSchema);
@@ -130,6 +139,7 @@ export type PlayerDropped = z.infer<typeof PlayerDroppedSchema>;
 export type PlayerUnregistered = z.infer<typeof PlayerUnregisteredSchema>;
 export type TournamentDetailsChanged = z.infer<typeof TournamentDetailsChangedSchema>;
 export type RoundPaired = z.infer<typeof RoundPairedSchema>;
+export type PlayersSwapped = z.infer<typeof PlayersSwappedSchema>;
 export type ResultReported = z.infer<typeof ResultReportedSchema>;
 export type RoundClosed = z.infer<typeof RoundClosedSchema>;
 export type TopCutStarted = z.infer<typeof TopCutStartedSchema>;
@@ -143,6 +153,7 @@ export const TournamentEventSchema = z.discriminatedUnion('type', [
   PlayerUnregisteredSchema,
   TournamentDetailsChangedSchema,
   RoundPairedSchema,
+  PlayersSwappedSchema,
   ResultReportedSchema,
   RoundClosedSchema,
   TopCutStartedSchema,

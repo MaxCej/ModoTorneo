@@ -112,3 +112,40 @@ export function runningDoc(
   });
   return { schemaVersion: 1, id: TOURNAMENT_ID, events: log.events };
 }
+
+/** `count` deterministic player ids: `PLAYERS` first, then `uuid(10_000 + i)` for larger fields. */
+export function playerIds(count: number): string[] {
+  return Array.from({ length: count }, (_, i) => PLAYERS[i] ?? uuid(10_000 + i));
+}
+
+/** One swiss match for `swissHistory`: `[playerA, playerB (null = bye), result (default WIN_A)]`. */
+export type HistoryMatch = [string, string | null, MatchResult?];
+
+/**
+ * A log with `players` registered as `Player 1`, `Player 2`… and one closed swiss round per
+ * entry of `rounds`. Match ids run on across rounds (`matchId(1)`, `matchId(2)`…) and tables
+ * follow the order of each round. The default allows up to 10 swiss rounds.
+ */
+export function swissHistory(
+  players: string[],
+  rounds: HistoryMatch[][],
+  created: TournamentCreatedPayload = { ...CREATED_PAYLOAD, swissRounds: 10 },
+): LogBuilder {
+  const log = logBuilder(created);
+  for (const [i, playerId] of players.entries()) {
+    log.add('PlayerRegistered', { playerId, playerName: `Player ${i + 1}` });
+  }
+  let match = 0;
+  for (const [index, matches] of rounds.entries()) {
+    const round = index + 1;
+    const pairings = matches.map(([a, b], i) => pairing(++match, i + 1, a, b));
+    log.add('RoundPaired', { round, stage: 'swiss', pairings });
+    for (const [i, [, b, result]] of matches.entries()) {
+      if (b !== null) {
+        log.add('ResultReported', { matchId: pairings[i].matchId, result: result ?? WIN_A });
+      }
+    }
+    log.add('RoundClosed', { round });
+  }
+  return log;
+}

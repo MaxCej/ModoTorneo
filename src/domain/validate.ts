@@ -1,5 +1,6 @@
 import { domainError, type DomainError } from './errors';
 import type {
+  PlayersSwapped,
   ResultReported,
   RoundClosed,
   RoundPaired,
@@ -106,6 +107,9 @@ export function validate(
       return event.payload.stage === 'swiss'
         ? validateSwissPairing(state, event)
         : validateTopCutPairing(state, event);
+
+    case 'PlayersSwapped':
+      return validateSwap(state, event);
 
     case 'ResultReported':
       return validateResult(state, event);
@@ -386,6 +390,54 @@ function validateResult(state: TournamentState, event: ResultReported): DomainEr
         event.seq,
       );
     }
+  }
+  return null;
+}
+
+/** Two active players in unreported matches of the open swiss round trade seats. */
+function validateSwap(state: TournamentState, event: PlayersSwapped): DomainError | null {
+  const { round, playerA, playerB } = event.payload;
+  const current = state.rounds.at(-1);
+  if (current === undefined || current.closed) {
+    return domainError('ROUND_CLOSED', 'There is no open round to swap players in', event.seq);
+  }
+  if (round !== current.number) {
+    return domainError(
+      'ROUND_OUT_OF_ORDER',
+      `Round ${current.number} is the open round, got ${round}`,
+      event.seq,
+    );
+  }
+  if (current.stage !== 'swiss') {
+    return domainError('WRONG_STATUS', 'Players can be swapped only in swiss rounds', event.seq);
+  }
+
+  const matchOf = (playerId: string) =>
+    current.matches.find((m) => m.playerA === playerId || m.playerB === playerId);
+  const matchA = matchOf(playerA);
+  const matchB = matchOf(playerB);
+  for (const [playerId, match] of [
+    [playerA, matchA],
+    [playerB, matchB],
+  ] as const) {
+    if (match === undefined) {
+      return domainError(
+        'UNKNOWN_PLAYER',
+        `Player ${playerId} is not paired in round ${round}`,
+        event.seq,
+      );
+    }
+    if (state.players[playerId]?.dropped) {
+      return domainError('PLAYER_DROPPED', `Player ${playerId} has dropped`, event.seq);
+    }
+  }
+  if (playerA === playerB || matchA === matchB) {
+    return domainError('INVALID_SWAP', 'Swap two players from different matches', event.seq);
+  }
+  // A bye's result is implicit, so a bye counts as unreported.
+  const reported = [matchA!, matchB!].find((m) => m.playerB !== null && m.result !== null);
+  if (reported !== undefined) {
+    return domainError('INVALID_SWAP', `Match ${reported.matchId} already has a result`, event.seq);
   }
   return null;
 }
