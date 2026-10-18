@@ -75,17 +75,26 @@ Each tournament is stored as a `TournamentDocument` (`{ schemaVersion: 1, id, ev
 an append-only event log. Tournament state is never stored: it is derived by replaying the
 events. Events carry a gapless `seq`, which orders the log; `at` is informational only.
 
-| Event                | Payload                                       |
-| -------------------- | --------------------------------------------- |
-| `TournamentCreated`  | name, date, location, format, swissRounds     |
-| `PlayerRegistered`   | playerId, playerName, optional deckId         |
-| `PlayerDropped`      | playerId                                      |
-| `RoundPaired`        | round, stage (`swiss` or `topCut`), pairings  |
-| `ResultReported`     | matchId, result (games won A/B, draws, kind)  |
-| `RoundClosed`        | round                                         |
-| `TopCutStarted`      | size (4, 8, 16 or 32)                         |
-| `TournamentFinished` | (none)                                        |
-| `RolledBack`         | toSeq: cancels every effective event after it |
+| Event                      | Payload                                                         |
+| -------------------------- | --------------------------------------------------------------- |
+| `TournamentCreated`        | name, date, location, format, swissRounds (`null` = auto)       |
+| `PlayerRegistered`         | playerId, playerName, optional deckId, optional guest           |
+| `PlayerUnregistered`       | playerId (setup only: removes a mistaken registration)          |
+| `PlayerDropped`            | playerId                                                        |
+| `TournamentDetailsChanged` | any of name, date, location, format, swissRounds (at least one) |
+| `RoundPaired`              | round, stage (`swiss` or `topCut`), pairings                    |
+| `ResultReported`           | matchId, result (games won A/B, draws, kind)                    |
+| `RoundClosed`              | round                                                           |
+| `TopCutStarted`            | size (4, 8, 16 or 32)                                           |
+| `TournamentFinished`       | (none)                                                          |
+| `RolledBack`               | toSeq: cancels every effective event after it                   |
+
+- **Auto swiss rounds:** `swissRounds: null` is fixed by the first swiss round, from the number of
+  active players (MTR Appendix E, `src/domain/swissRounds.ts`). Late entries do not change it.
+- **Editing details:** format can change only in setup. Swiss rounds can change until swiss
+  ends, but never below the rounds already paired.
+- **Guests:** a `PlayerRegistered` with `guest: true` plays in that tournament only. Guests are
+  never added to the global player registry.
 
 `Player` is a global entity shared across tournaments. Decks are defined in a later spec.
 

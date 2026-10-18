@@ -29,12 +29,16 @@ export const PairingSchema = z.object({
 });
 export type Pairing = z.infer<typeof PairingSchema>;
 
+const TournamentNameSchema = z.string().trim().min(1).max(100);
+const LocationSchema = z.string().trim().max(100);
+const SwissRoundsSchema = RoundNumberSchema.nullable(); // null = auto
+
 export const TournamentCreatedPayloadSchema = z.object({
-  name: z.string().trim().min(1).max(100),
+  name: TournamentNameSchema,
   date: IsoDateSchema,
-  location: z.string().trim().max(100),
+  location: LocationSchema,
   format: FormatSchema,
-  swissRounds: RoundNumberSchema.nullable(), // null = auto, fixed by the first swiss RoundPaired
+  swissRounds: SwissRoundsSchema, // null is fixed by the first swiss RoundPaired
 });
 export type TournamentCreatedPayload = z.infer<typeof TournamentCreatedPayloadSchema>;
 
@@ -45,6 +49,20 @@ export const PlayerRegisteredPayloadSchema = z.object({
   guest: z.boolean().optional(), // missing = false. Guests are never added to the global registry.
 });
 export type PlayerRegisteredPayload = z.infer<typeof PlayerRegisteredPayloadSchema>;
+
+/** Partial edit of the tournament details. At least one field is present. */
+export const TournamentDetailsChangedPayloadSchema = z
+  .object({
+    name: TournamentNameSchema.optional(),
+    date: IsoDateSchema.optional(),
+    location: LocationSchema.optional(),
+    format: FormatSchema.optional(),
+    swissRounds: SwissRoundsSchema.optional(), // null = back to auto
+  })
+  .refine((payload) => Object.values(payload).some((value) => value !== undefined), {
+    message: 'At least one detail must change',
+  });
+export type TournamentDetailsChangedPayload = z.infer<typeof TournamentDetailsChangedPayloadSchema>;
 
 export const PlayerDroppedPayloadSchema = z.object({ playerId: UuidSchema });
 export type PlayerDroppedPayload = z.infer<typeof PlayerDroppedPayloadSchema>;
@@ -92,6 +110,10 @@ export const PlayerUnregisteredSchema = eventSchema(
   'PlayerUnregistered',
   PlayerUnregisteredPayloadSchema,
 );
+export const TournamentDetailsChangedSchema = eventSchema(
+  'TournamentDetailsChanged',
+  TournamentDetailsChangedPayloadSchema,
+);
 export const RoundPairedSchema = eventSchema('RoundPaired', RoundPairedPayloadSchema);
 export const ResultReportedSchema = eventSchema('ResultReported', ResultReportedPayloadSchema);
 export const RoundClosedSchema = eventSchema('RoundClosed', RoundClosedPayloadSchema);
@@ -106,6 +128,7 @@ export type TournamentCreated = z.infer<typeof TournamentCreatedSchema>;
 export type PlayerRegistered = z.infer<typeof PlayerRegisteredSchema>;
 export type PlayerDropped = z.infer<typeof PlayerDroppedSchema>;
 export type PlayerUnregistered = z.infer<typeof PlayerUnregisteredSchema>;
+export type TournamentDetailsChanged = z.infer<typeof TournamentDetailsChangedSchema>;
 export type RoundPaired = z.infer<typeof RoundPairedSchema>;
 export type ResultReported = z.infer<typeof ResultReportedSchema>;
 export type RoundClosed = z.infer<typeof RoundClosedSchema>;
@@ -118,6 +141,7 @@ export const TournamentEventSchema = z.discriminatedUnion('type', [
   PlayerRegisteredSchema,
   PlayerDroppedSchema,
   PlayerUnregisteredSchema,
+  TournamentDetailsChangedSchema,
   RoundPairedSchema,
   ResultReportedSchema,
   RoundClosedSchema,

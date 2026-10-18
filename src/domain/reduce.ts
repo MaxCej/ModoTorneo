@@ -1,6 +1,6 @@
 import { CorruptLogError, domainError } from './errors';
 import type { Uuid } from './schemas/common';
-import type { TournamentEvent } from './schemas/events';
+import type { TournamentDetailsChangedPayload, TournamentEvent } from './schemas/events';
 import { IMPLICIT_BYE_RESULT } from './schemas/matchResult';
 import { initialState, type Round, type TournamentState } from './state';
 import { resolvedSwissRounds, validate } from './validate';
@@ -52,6 +52,14 @@ export function apply(
       const players = { ...state.players };
       delete players[event.payload.playerId];
       return { ...next, players };
+    }
+
+    case 'TournamentDetailsChanged': {
+      // Only the fields present in the payload change.
+      const details = Object.fromEntries(
+        Object.entries(event.payload).filter(([, value]) => value !== undefined),
+      ) as Partial<TournamentDetailsChangedPayload>;
+      return { ...next, ...details };
     }
 
     case 'RoundPaired': {

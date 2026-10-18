@@ -4,6 +4,8 @@ import type {
   RoundClosed,
   RoundPaired,
   TopCutStarted,
+  TournamentDetailsChanged,
+  TournamentDetailsChangedPayload,
   TournamentEvent,
   TournamentFinished,
 } from './schemas/events';
@@ -97,6 +99,9 @@ export function validate(
       return null;
     }
 
+    case 'TournamentDetailsChanged':
+      return validateDetailsChanged(state, event);
+
     case 'RoundPaired':
       return event.payload.stage === 'swiss'
         ? validateSwissPairing(state, event)
@@ -127,6 +132,55 @@ export function validate(
       return null;
     }
   }
+}
+
+type DetailField = keyof TournamentDetailsChangedPayload;
+
+/** Format is fixed once play starts; swiss rounds are fixed once swiss ends. */
+const EDITABLE_DETAILS: Record<TournamentState['status'], readonly DetailField[]> = {
+  setup: ['name', 'date', 'location', 'format', 'swissRounds'],
+  running: ['name', 'date', 'location', 'swissRounds'],
+  topCut: ['name', 'date', 'location'],
+  finished: ['name', 'date', 'location'],
+};
+
+function validateDetailsChanged(
+  state: TournamentState,
+  event: TournamentDetailsChanged,
+): DomainError | null {
+  const allowed = EDITABLE_DETAILS[state.status];
+  const fields = (Object.keys(event.payload) as DetailField[]).filter(
+    (field) => event.payload[field] !== undefined,
+  );
+  const blocked = fields.find((field) => !allowed.includes(field));
+  if (blocked !== undefined) {
+    return domainError(
+      'WRONG_STATUS',
+      `${blocked} cannot change while the tournament is ${state.status}`,
+      event.seq,
+    );
+  }
+
+  const { swissRounds } = event.payload;
+  if (swissRounds === undefined || state.status === 'setup') {
+    return null;
+  }
+  if (swissRounds === null) {
+    return domainError(
+      'INVALID_DETAILS',
+      'Swiss rounds cannot go back to auto once round 1 is paired',
+      event.seq,
+    );
+  }
+  const paired = state.rounds.filter((round) => round.stage === 'swiss').length;
+  if (swissRounds < paired) {
+    return domainError(
+      'INVALID_DETAILS',
+      `Swiss rounds cannot be ${swissRounds}: ${paired} swiss rounds are already paired`,
+      event.seq,
+    );
+  }
+  return null;
 }
 
 function validateTopCutPairing(state: TournamentState, event: RoundPaired): DomainError | null {

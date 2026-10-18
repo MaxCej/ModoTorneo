@@ -74,6 +74,21 @@ const samples: Record<TournamentEventType, Sample> = {
       'missing playerId': {},
     },
   },
+  TournamentDetailsChanged: {
+    valid: {
+      name: 'Saturday Modern',
+      date: '2026-10-12',
+      location: '',
+      format: 'legacy',
+      swissRounds: null,
+    },
+    invalid: {
+      'empty payload': {},
+      'blank name': { name: '  ' },
+      'unknown format': { format: 'brawl' },
+      'zero swiss rounds': { swissRounds: 0 },
+    },
+  },
   RoundPaired: {
     valid: {
       round: 1,
@@ -137,6 +152,14 @@ describe('TournamentEventSchema', () => {
       expect(TournamentEventSchema.safeParse({ ...envelope, type, payload }).success).toBe(false);
     });
   });
+
+  it.each([{ name: 'FNM' }, { swissRounds: 5 }, { swissRounds: null }, { location: '' }])(
+    'accepts a partial TournamentDetailsChanged %j',
+    (payload) => {
+      const event = { ...envelope, type: 'TournamentDetailsChanged', payload };
+      expect(TournamentEventSchema.parse(event)).toEqual(event);
+    },
+  );
 
   it('rejects an unknown type', () => {
     expect(

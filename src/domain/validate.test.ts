@@ -240,6 +240,80 @@ describe('validate: PlayerUnregistered', () => {
   });
 });
 
+describe('validate: TournamentDetailsChanged', () => {
+  type Details = PayloadOf<'TournamentDetailsChanged'>;
+
+  /** One state per status. `running` has 1 of 2 swiss rounds paired and closed. */
+  const states = {
+    setup: () => reduceLog(registeredLog(4, TWO_ROUNDS)),
+    running: () => reduceLog(swissRound1Done()),
+    topCut: () => reduceLog(swissDone().add('TopCutStarted', { size: 4 })),
+    finished: () => reduceLog(swissDone().add('TournamentFinished', {})),
+  };
+
+  const ALLOWED: Record<keyof typeof states, Details[]> = {
+    setup: [
+      { name: 'Renamed' },
+      { date: '2026-12-01' },
+      { location: 'Elsewhere' },
+      { format: 'legacy' },
+      { swissRounds: 5 },
+      { swissRounds: null },
+    ],
+    running: [
+      { name: 'Renamed' },
+      { date: '2026-12-01' },
+      { location: 'Elsewhere' },
+      { swissRounds: 3 },
+    ],
+    topCut: [{ name: 'Renamed' }, { date: '2026-12-01' }, { location: 'Elsewhere' }],
+    finished: [{ name: 'Renamed' }, { date: '2026-12-01' }, { location: 'Elsewhere' }],
+  };
+
+  const BLOCKED: Record<keyof typeof states, Details[]> = {
+    setup: [],
+    running: [{ format: 'legacy' }, { name: 'Renamed', format: 'legacy' }],
+    topCut: [{ format: 'legacy' }, { swissRounds: 3 }],
+    finished: [{ format: 'legacy' }, { swissRounds: 3 }],
+  };
+
+  describe.each(Object.keys(states) as (keyof typeof states)[])('while %s', (status) => {
+    it('starts from the expected status', () => {
+      expect(states[status]().status).toBe(status);
+    });
+
+    it.each(ALLOWED[status])('accepts %j', (payload) => {
+      expect(validateNext(states[status](), 'TournamentDetailsChanged', payload)).toBeNull();
+    });
+
+    if (BLOCKED[status].length > 0) {
+      it.each(BLOCKED[status])('rejects %j with WRONG_STATUS', (payload) => {
+        expect(validateNext(states[status](), 'TournamentDetailsChanged', payload)).toMatchObject({
+          code: 'WRONG_STATUS',
+        });
+      });
+    }
+  });
+
+  it('accepts swissRounds equal to the swiss rounds already paired', () => {
+    expect(
+      validateNext(reduceLog(swissDone()), 'TournamentDetailsChanged', { swissRounds: 2 }),
+    ).toBeNull();
+  });
+
+  it('rejects swissRounds below the swiss rounds already paired', () => {
+    expect(
+      validateNext(reduceLog(swissDone()), 'TournamentDetailsChanged', { swissRounds: 1 }),
+    ).toMatchObject({ code: 'INVALID_DETAILS' });
+  });
+
+  it('rejects swissRounds null (auto) while running', () => {
+    expect(
+      validateNext(reduceLog(swissRound1Done()), 'TournamentDetailsChanged', { swissRounds: null }),
+    ).toMatchObject({ code: 'INVALID_DETAILS' });
+  });
+});
+
 describe('validate: RoundPaired (swiss)', () => {
   const fourPlayers = () => reduceLog(registeredLog(4));
 

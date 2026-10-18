@@ -2,6 +2,7 @@ import Dexie from 'dexie';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createTournament,
+  execute,
   type TournamentCreatedPayload,
   type TournamentDocument,
 } from '../domain';
@@ -161,6 +162,29 @@ describe('DexieBackend tournaments', () => {
           revision: '1',
         },
       ],
+    });
+  });
+
+  it('reflects TournamentDetailsChanged in the summary after save', async () => {
+    const { backend } = freshBackend();
+    const doc = newDoc({ name: 'Before', date: '2026-10-01', format: 'modern' });
+    const created = await backend.saveTournament(doc, null);
+    if (!created.ok) {
+      throw new Error('expected ok');
+    }
+    const changed = execute(doc, {
+      type: 'TournamentDetailsChanged',
+      payload: { name: 'After', date: '2026-10-02', format: 'legacy' },
+    });
+    if (!changed.ok) {
+      throw new Error(`expected ok, got ${JSON.stringify(changed.error)}`);
+    }
+    await backend.saveTournament(changed.value.doc, created.value.revision);
+
+    const list = await backend.listTournaments();
+    expect(list).toMatchObject({
+      ok: true,
+      value: [{ id: doc.id, name: 'After', date: '2026-10-02', format: 'legacy', revision: '2' }],
     });
   });
 

@@ -318,6 +318,31 @@ describe('reduce: auto swiss rounds', () => {
   });
 });
 
+describe('reduce: TournamentDetailsChanged', () => {
+  it('changes only the fields present in the payload', () => {
+    const { events } = logBuilder()
+      .add('TournamentDetailsChanged', { name: 'Saturday Modern', swissRounds: null })
+      .add('TournamentDetailsChanged', { format: 'legacy', location: '' });
+
+    expect(reduce(events, TOURNAMENT_ID)).toMatchObject({
+      name: 'Saturday Modern',
+      date: CREATED_PAYLOAD.date,
+      location: '',
+      format: 'legacy',
+      swissRounds: null,
+      status: 'setup',
+      lastSeq: 3,
+    });
+  });
+
+  it('keeps an explicit swissRounds set by the organizer when round 1 is paired', () => {
+    const { events } = registeredLog(4, { ...CREATED_PAYLOAD, swissRounds: null })
+      .add('TournamentDetailsChanged', { swissRounds: 5 })
+      .add('RoundPaired', swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, P4)]));
+    expect(reduce(events, TOURNAMENT_ID).swissRounds).toBe(5);
+  });
+});
+
 describe('reduce: top cut and finish', () => {
   const twoRounds = { ...CREATED_PAYLOAD, swissRounds: 2 };
   const swissDone = () =>
