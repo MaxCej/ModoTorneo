@@ -1,17 +1,28 @@
 import { Badge, Button, Group, Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { PlayerEntry, TournamentStatus } from '../../domain';
+import { NameEntry } from './NameEntry';
 
 type Props = {
   /** Registered players, name asc. */
   entries: PlayerEntry[];
   status: TournamentStatus;
+  existingNames: readonly string[];
+  /** Registers a guest (never saved to the registry). Returns an error message or null. */
+  onAddGuest: (name: string) => string | null;
   onRemove: (entry: PlayerEntry) => void;
   onDrop: (entry: PlayerEntry) => void;
 };
 
 /** Right column: players in this tournament. Remove in setup, Drop while running. */
-export function RegisteredList({ entries, status, onRemove, onDrop }: Props) {
+export function RegisteredList({
+  entries,
+  status,
+  existingNames,
+  onAddGuest,
+  onRemove,
+  onDrop,
+}: Props) {
   const { t } = useTranslation();
   const active = entries.filter((entry) => !entry.dropped).length;
 
@@ -20,6 +31,14 @@ export function RegisteredList({ entries, status, onRemove, onDrop }: Props) {
       <Title order={2} size="h4">
         {t('tournament.registration.registered', { count: active })}
       </Title>
+
+      {(status === 'setup' || status === 'running') && (
+        <NameEntry
+          label={t('tournament.registration.addGuest')}
+          existingNames={existingNames}
+          onAdd={onAddGuest}
+        />
+      )}
 
       {entries.length === 0 ? (
         <Text c="dimmed" size="sm">

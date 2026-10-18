@@ -1,12 +1,14 @@
 import { Card, SimpleGrid } from '@mantine/core';
 import { useState } from 'react';
-import type {
-  Command,
-  DomainError,
-  Player,
-  PlayerEntry,
-  Result,
-  TournamentState,
+import { useTranslation } from 'react-i18next';
+import {
+  newId,
+  type Command,
+  type DomainError,
+  type Player,
+  type PlayerEntry,
+  type Result,
+  type TournamentState,
 } from '../../domain';
 import type { StorageError } from '../../storage';
 import { DropPlayerModal } from './DropPlayerModal';
@@ -18,6 +20,8 @@ type Props = {
   /** The global registry, name asc. */
   players: Player[];
   playersError: StorageError | null;
+  /** Saves a new registry player (`playersStore.addPlayer`). */
+  onAddPlayer: (name: string) => Promise<Result<Player, StorageError>>;
   onDispatch: (cmd: Command) => Result<TournamentState, DomainError>;
 };
 
@@ -25,7 +29,14 @@ type Props = {
 const collator = new Intl.Collator('en');
 
 /** Registry on the left, registered players on the right. Late entries and drops while running. */
-export function RegistrationPanel({ state, players, playersError, onDispatch }: Props) {
+export function RegistrationPanel({
+  state,
+  players,
+  playersError,
+  onAddPlayer,
+  onDispatch,
+}: Props) {
+  const { t } = useTranslation();
   const [dropping, setDropping] = useState<PlayerEntry | null>(null);
   const readOnly = state.status === 'topCut' || state.status === 'finished';
 
@@ -36,6 +47,40 @@ export function RegistrationPanel({ state, players, playersError, onDispatch }: 
       (a.playerId < b.playerId ? -1 : a.playerId > b.playerId ? 1 : 0),
   );
 
+  // The duplicate warning checks both lists.
+  const existingNames = [
+    ...players.map((player) => player.name),
+    ...entries.map((entry) => entry.playerName),
+  ];
+
+  const register = (player: Player) =>
+    onDispatch({
+      type: 'PlayerRegistered',
+      payload: { playerId: player.id, playerName: player.name },
+    });
+
+  /** Registry first: a storage error registers nobody. */
+  async function addNew(name: string): Promise<string | null> {
+    const added = await onAddPlayer(name);
+    if (!added.ok) {
+      return t('tournament.registration.addFailed', {
+        code: added.error.code,
+        message: added.error.message,
+      });
+    }
+    register(added.value);
+    return null;
+  }
+
+  function addGuest(name: string): string | null {
+    const result = onDispatch({
+      type: 'PlayerRegistered',
+      payload: { playerId: newId(), playerName: name, guest: true },
+    });
+    // A rejected command shows under the panel; keep the typed name.
+    return result.ok ? null : '';
+  }
+
   return (
     <Card withBorder>
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xl">
@@ -43,16 +88,15 @@ export function RegistrationPanel({ state, players, playersError, onDispatch }: 
           players={available}
           loadError={playersError}
           readOnly={readOnly}
-          onRegister={(player) =>
-            onDispatch({
-              type: 'PlayerRegistered',
-              payload: { playerId: player.id, playerName: player.name },
-            })
-          }
+          existingNames={existingNames}
+          onRegister={register}
+          onAddNew={addNew}
         />
         <RegisteredList
           entries={entries}
           status={state.status}
+          existingNames={existingNames}
+          onAddGuest={addGuest}
           onRemove={(entry) =>
             onDispatch({ type: 'PlayerUnregistered', payload: { playerId: entry.playerId } })
           }

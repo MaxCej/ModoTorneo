@@ -86,6 +86,7 @@ export function TournamentPage() {
               state={state}
               players={players}
               playersError={playersError}
+              onAddPlayer={(name) => usePlayersStore.getState().addPlayer(name)}
               onDispatch={dispatchFrom('registration')}
             />
             {commandError && errorPanel === 'registration' && <CommandErrorAlert />}

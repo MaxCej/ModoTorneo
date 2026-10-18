@@ -3,17 +3,28 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Player } from '../../domain';
 import type { StorageError } from '../../storage';
+import { NameEntry } from './NameEntry';
 
 type Props = {
   /** Registry players not registered in this tournament, name asc. */
   players: Player[];
   loadError: StorageError | null;
   readOnly: boolean;
+  existingNames: readonly string[];
   onRegister: (player: Player) => void;
+  /** Adds a player to the registry and registers them. Returns an error message or null. */
+  onAddNew: (name: string) => Promise<string | null>;
 };
 
 /** Left column: the global registry. Click a row, or type a filter and press Enter. */
-export function RegistryList({ players, loadError, readOnly, onRegister }: Props) {
+export function RegistryList({
+  players,
+  loadError,
+  readOnly,
+  existingNames,
+  onRegister,
+  onAddNew,
+}: Props) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState('');
   const needle = filter.trim().toLocaleLowerCase();
@@ -34,6 +45,14 @@ export function RegistryList({ players, loadError, readOnly, onRegister }: Props
             message: loadError.message,
           })}
         </Alert>
+      )}
+
+      {!readOnly && (
+        <NameEntry
+          label={t('tournament.registration.newPlayer')}
+          existingNames={existingNames}
+          onAdd={onAddNew}
+        />
       )}
 
       {!readOnly && (

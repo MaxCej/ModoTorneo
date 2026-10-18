@@ -176,6 +176,42 @@ describe('TournamentPage', () => {
     ]);
   });
 
+  it('adds a new player to listPlayers and registers them', async () => {
+    await backend.saveTournament(autoDoc(0), null);
+    renderPage();
+    const input = await screen.findByRole('textbox', { name: 'New player' });
+
+    fireEvent.change(input, { target: { value: 'Carmen' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(await screen.findByRole('heading', { name: 'Registered (1)' })).toBeInTheDocument();
+    await idle();
+    const players = await backend.listPlayers();
+    expect(players.ok && players.value.map((p) => p.name)).toEqual(['Carmen']);
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    const registered = stored.ok ? Object.values(stored.value.state.players) : [];
+    expect(registered).toMatchObject([
+      { playerId: players.ok ? players.value[0].id : '', playerName: 'Carmen', guest: false },
+    ]);
+  });
+
+  it('registers a guest who is not in listPlayers', async () => {
+    await backend.saveTournament(autoDoc(0), null);
+    renderPage();
+    const input = await screen.findByRole('textbox', { name: 'Add guest' });
+
+    fireEvent.change(input, { target: { value: 'Visitor' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(await screen.findByText('Guest')).toBeInTheDocument();
+    await idle();
+    expect(await backend.listPlayers()).toEqual({ ok: true, value: [] });
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    expect(stored.ok && Object.values(stored.value.state.players)).toMatchObject([
+      { playerName: 'Visitor', guest: true },
+    ]);
+  });
+
   it('shows the conflict notice and clears it with the close button', async () => {
     const doc = autoDoc(2);
     await backend.saveTournament(doc, null);

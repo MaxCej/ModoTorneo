@@ -87,6 +87,8 @@
     "registration": {
       "registry": "Players",
       "registryFailed": "Could not load players ({{code}}): {{message}}",
+      "newPlayer": "New player",
+      "addFailed": "Could not add the player ({{code}}): {{message}}",
       "filter": "Filter",
       "noMatch": "No player matches the filter.",
       "registryEmpty": "No other players in the registry.",
@@ -94,6 +96,9 @@
       "addLabel": "Add {{name}}",
       "registered": "Registered ({{count}})",
       "registeredEmpty": "No players registered yet.",
+      "addGuest": "Add guest",
+      "duplicate": "A player named {{name}} already exists.",
+      "addAnyway": "Add anyway",
       "guest": "Guest",
       "dropped": "Dropped",
       "remove": "Remove",

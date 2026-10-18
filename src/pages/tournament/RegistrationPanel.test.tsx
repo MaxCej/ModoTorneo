@@ -1,5 +1,5 @@
 import { MantineProvider } from '@mantine/core';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import {
@@ -9,6 +9,7 @@ import {
   reduce,
   type Command,
   type Player,
+  type Result,
   type TournamentDocument,
   type TournamentEvent,
 } from '../../domain';
@@ -20,7 +21,9 @@ import {
   pairing,
   registeredLog,
   runningDoc,
+  uuid,
 } from '../../domain/fixtures/builders';
+import type { StorageError } from '../../storage';
 import { RegistrationPanel } from './RegistrationPanel';
 
 const [P1, P2, P3, P4] = PLAYERS;
@@ -42,19 +45,36 @@ const toDoc = (events: TournamentEvent[]): TournamentDocument => ({
   events,
 });
 
-/** Holds the document and applies each command with `execute`, like the store does. */
-function renderPanel(initial: TournamentDocument) {
+type AddPlayer = (name: string) => Promise<Result<Player, StorageError>>;
+
+/**
+ * Holds the document and the registry. Commands go through `execute`, like the store does;
+ * new players get ids `uuid(700)`, `uuid(701)`… unless `addPlayer` overrides the save.
+ */
+function renderPanel(initial: TournamentDocument, addPlayer?: AddPlayer) {
   const dispatched: Command[] = [];
   let current = initial;
+  let registry = REGISTRY;
+  let nextId = 700;
 
   function Harness() {
     const [doc, setDoc] = useState(initial);
+    const [players, setPlayers] = useState(REGISTRY);
     const state = reduce(doc.events, doc.id);
     return (
       <RegistrationPanel
         state={state}
-        players={REGISTRY}
+        players={players}
         playersError={null}
+        onAddPlayer={async (name) => {
+          if (addPlayer) {
+            return addPlayer(name);
+          }
+          const player = { id: uuid(nextId++), name: name.trim(), createdAt: CREATED_AT };
+          registry = [...registry, player].sort((a, b) => a.name.localeCompare(b.name, 'en'));
+          setPlayers(registry);
+          return ok(player);
+        }}
         onDispatch={(cmd) => {
           dispatched.push(cmd);
           const result = execute(doc, cmd);
@@ -74,7 +94,7 @@ function renderPanel(initial: TournamentDocument) {
       <Harness />
     </MantineProvider>,
   );
-  return { dispatched, doc: () => current };
+  return { dispatched, doc: () => current, registry: () => registry };
 }
 
 const registryColumn = () =>
@@ -245,5 +265,113 @@ describe('RegistrationPanel when finished', () => {
     expect(names(registeredColumn())).toHaveLength(4);
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+});
+
+describe('RegistrationPanel name inputs', () => {
+  const newPlayer = () => screen.getByRole('textbox', { name: 'New player' });
+  const addGuest = () => screen.getByRole('textbox', { name: 'Add guest' });
+  const type = (input: HTMLElement, value: string) =>
+    fireEvent.change(input, { target: { value } });
+  const enter = (input: HTMLElement) => fireEvent.keyDown(input, { key: 'Enter' });
+
+  it('adds a new player to the registry and registers them', async () => {
+    const { dispatched, registry } = renderPanel(toDoc(logBuilder().events));
+    newPlayer().focus();
+    type(newPlayer(), '  Carmen ');
+    enter(newPlayer());
+
+    await waitFor(() => expect(names(registeredColumn())).toEqual(['Carmen']));
+    expect(registry().map((p) => p.name)).toContain('Carmen');
+    expect(dispatched).toEqual([
+      { type: 'PlayerRegistered', payload: { playerId: uuid(700), playerName: 'Carmen' } },
+    ]);
+    expect(newPlayer()).toHaveValue('');
+    expect(newPlayer()).toHaveFocus();
+  });
+
+  it('shows a storage error under the input and registers nobody', async () => {
+    const { dispatched } = renderPanel(toDoc(logBuilder().events), async () => ({
+      ok: false,
+      error: { code: 'UNAVAILABLE', message: 'blocked' },
+    }));
+    type(newPlayer(), 'Carmen');
+    enter(newPlayer());
+
+    expect(
+      await screen.findByText('Could not add the player (UNAVAILABLE): blocked'),
+    ).toBeInTheDocument();
+    expect(dispatched).toEqual([]);
+    expect(newPlayer()).toHaveValue('Carmen');
+  });
+
+  it('registers a guest with the badge, without touching the registry', async () => {
+    const { dispatched, registry } = renderPanel(toDoc(logBuilder().events));
+    addGuest().focus();
+    type(addGuest(), 'Visitor');
+    enter(addGuest());
+
+    const row = registeredColumn().getByText('Visitor').closest('li')!;
+    expect(within(row).getByText('Guest')).toBeInTheDocument();
+    expect(dispatched).toMatchObject([
+      { type: 'PlayerRegistered', payload: { playerName: 'Visitor', guest: true } },
+    ]);
+    expect(registry()).toEqual(REGISTRY);
+    await waitFor(() => expect(addGuest()).toHaveValue(''));
+    expect(addGuest()).toHaveFocus();
+  });
+
+  it('ignores Enter on an empty name', () => {
+    const { dispatched } = renderPanel(toDoc(logBuilder().events));
+    type(addGuest(), '   ');
+    enter(addGuest());
+    expect(dispatched).toEqual([]);
+  });
+
+  it.each([
+    ['a registry player', 'alice'],
+    ['a registered player', ' PLAYER 1 '],
+  ])('needs a second Enter for the name of %s', async (_, name) => {
+    const { dispatched } = renderPanel(toDoc(registeredLog(1).events));
+    type(addGuest(), name);
+
+    enter(addGuest());
+    expect(screen.getByText(`A player named ${name.trim()} already exists.`)).toBeInTheDocument();
+    expect(dispatched).toEqual([]);
+
+    enter(addGuest());
+    expect(dispatched).toHaveLength(1);
+    await waitFor(() => expect(screen.queryByText(/already exists/)).not.toBeInTheDocument());
+  });
+
+  it('adds a duplicate with "Add anyway" and gives the focus back', async () => {
+    const { dispatched } = renderPanel(toDoc(logBuilder().events));
+    type(newPlayer(), 'Bruno');
+    enter(newPlayer());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add anyway' }));
+
+    await waitFor(() => expect(dispatched).toHaveLength(1));
+    expect(names(registeredColumn())).toEqual(['Bruno']);
+    expect(newPlayer()).toHaveFocus();
+  });
+
+  it('clears the warning when the text is edited', () => {
+    const { dispatched } = renderPanel(toDoc(logBuilder().events));
+    type(addGuest(), 'Bruno');
+    enter(addGuest());
+    expect(screen.getByText(/already exists/)).toBeInTheDocument();
+
+    type(addGuest(), 'Bruno ');
+    expect(screen.queryByText(/already exists/)).not.toBeInTheDocument();
+    enter(addGuest());
+    expect(screen.getByText(/already exists/)).toBeInTheDocument();
+    expect(dispatched).toEqual([]);
+  });
+
+  it('keeps both inputs for late entries while running', () => {
+    renderPanel(runningDoc(4));
+    expect(newPlayer()).toBeInTheDocument();
+    expect(addGuest()).toBeInTheDocument();
   });
 });
