@@ -101,6 +101,21 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
 
 `Player` is a global entity shared across tournaments. Decks are defined in a later spec.
 
+## Pairing and scoring
+
+- **Match points (MTR):** win 3, draw or intentional draw 1, loss 0. A bye is a 2-0 win (3
+  points). An unplayed match is a loss for both players. Top cut rounds do not count
+  (`src/domain/points.ts`).
+- **Swiss pairing** (`src/domain/pairing.ts`):
+  - Round 1 is random. Later rounds pair players with the same match points, in random
+    order, and the odd player of a group floats down to the next one.
+  - Rematches are avoided by backtracking. When no round without rematches exists, the
+    pairing with the fewest is used and the round shows a warning.
+  - With an odd number of players, the bye goes to the lowest match points among players
+    without a bye (random among ties).
+  - Tables are numbered from the top: the highest points play at table 1, and the bye gets
+    the last table.
+
 ## Screens
 
 Every page renders inside one app shell with navigation (Tournaments, Data). Pages are loaded

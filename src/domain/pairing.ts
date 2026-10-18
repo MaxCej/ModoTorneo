@@ -13,6 +13,10 @@ export const SEARCH_BUDGET = 100_000;
 /** `random` returns a number in [0, 1), like `Math.random`. */
 export type PairingDeps = { random: () => number; newId: () => Uuid };
 
+export type PairingWarning =
+  | { kind: 'rematch'; matchId: Uuid; playerA: Uuid; playerB: Uuid }
+  | { kind: 'repeatBye'; matchId: Uuid; playerId: Uuid };
+
 const defaultDeps: PairingDeps = { random: Math.random, newId };
 
 /**
@@ -54,6 +58,35 @@ export function pairSwissRound(
     });
   }
   return ok({ round: state.rounds.length + 1, stage: 'swiss', pairings });
+}
+
+/**
+ * Rematches and repeated byes in swiss round `round`, against the rounds before it, in table
+ * order. Empty for an unknown or top cut round.
+ */
+export function pairingWarnings(state: TournamentState, round: number): PairingWarning[] {
+  const target = state.rounds.find((r) => r.number === round);
+  if (target === undefined || target.stage !== 'swiss') {
+    return [];
+  }
+  const records = playerRecords(state, round);
+  const warnings: PairingWarning[] = [];
+  for (const match of [...target.matches].sort((a, b) => a.table - b.table)) {
+    const record = records[match.playerA];
+    if (match.playerB === null) {
+      if (record !== undefined && record.byes > 0) {
+        warnings.push({ kind: 'repeatBye', matchId: match.matchId, playerId: match.playerA });
+      }
+    } else if (record?.opponents.includes(match.playerB)) {
+      warnings.push({
+        kind: 'rematch',
+        matchId: match.matchId,
+        playerA: match.playerA,
+        playerB: match.playerB,
+      });
+    }
+  }
+  return warnings;
 }
 
 /** The same codes `validate` would return for the resulting `RoundPaired`. */

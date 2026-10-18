@@ -12,7 +12,7 @@ import {
   uuid,
   type LogBuilder,
 } from './fixtures/builders';
-import { pairSwissRound, type PairingDeps } from './pairing';
+import { pairingWarnings, pairSwissRound, type PairingDeps } from './pairing';
 import { playerRecords } from './points';
 import { reduce } from './reduce';
 import type { RoundPairedPayload } from './schemas/events';
@@ -448,5 +448,98 @@ describe('pairSwissRound rematch avoidance', () => {
     expect(payload.pairings).toHaveLength(128);
     expect(rematches(log, payload)).toBe(0);
     assertValid(log, payload);
+  });
+});
+
+describe('pairingWarnings', () => {
+  const [a, b, c, d, e] = playerIds(5);
+
+  it('is empty for a clean round, an unknown round and a top cut round', () => {
+    const log = swissHistory(playerIds(4), [
+      [
+        [a, b],
+        [c, d],
+      ],
+      [
+        [a, c],
+        [b, d],
+      ],
+    ]);
+    expect(pairingWarnings(stateOf(log), 1)).toEqual([]);
+    expect(pairingWarnings(stateOf(log), 2)).toEqual([]);
+    expect(pairingWarnings(stateOf(log), 9)).toEqual([]);
+
+    log.add('TopCutStarted', { size: 4 });
+    addClosedRound(log, 3, 'topCut', [pairing(90, 1, a, b), pairing(91, 2, c, d)]);
+    expect(pairingWarnings(stateOf(log), 3)).toEqual([]);
+  });
+
+  it('reports exactly 2 rematches for 4 players in round 4', () => {
+    const log = swissHistory(playerIds(4), [
+      [
+        [a, b],
+        [c, d],
+      ],
+      [
+        [a, c],
+        [b, d],
+      ],
+      [
+        [a, d],
+        [b, c],
+      ],
+    ]);
+    const payload = pair(log);
+    log.add('RoundPaired', payload);
+
+    const warnings = pairingWarnings(stateOf(log), 4);
+    expect(warnings).toHaveLength(2);
+    expect(warnings.every((w) => w.kind === 'rematch')).toBe(true);
+    expect(warnings.map((w) => w.matchId)).toEqual(payload.pairings.map((p) => p.matchId));
+  });
+
+  it('reports a repeated bye', () => {
+    const log = swissHistory(playerIds(3), [
+      [
+        [a, b],
+        [c, null],
+      ],
+    ]).add('RoundPaired', {
+      round: 2,
+      stage: 'swiss',
+      pairings: [pairing(10, 1, a, b), pairing(11, 2, c, null)],
+    });
+
+    expect(pairingWarnings(stateOf(log), 2)).toEqual([
+      { kind: 'rematch', matchId: pairing(10, 1, a, b).matchId, playerA: a, playerB: b },
+      { kind: 'repeatBye', matchId: pairing(11, 2, c, null).matchId, playerId: c },
+    ]);
+  });
+
+  it('reports the rematch and the repeated bye created by a swap', () => {
+    // Round 1: a-b, c-d, e on the bye. Round 2: a-c, b-e, d on the bye.
+    const log = swissHistory(playerIds(5), [
+      [
+        [a, b],
+        [c, d],
+        [e, null],
+      ],
+    ]).add('RoundPaired', {
+      round: 2,
+      stage: 'swiss',
+      pairings: [pairing(10, 1, a, c), pairing(11, 2, b, e), pairing(12, 3, d, null)],
+    });
+    expect(pairingWarnings(stateOf(log), 2)).toEqual([]);
+
+    // Swap d (bye) with e: b-d at table 2, e on the bye again.
+    log.add('PlayersSwapped', { round: 2, playerA: d, playerB: e });
+    // Swap c with b: a-b and c-d, both round 1 rematches.
+    log.add('PlayersSwapped', { round: 2, playerA: c, playerB: b });
+
+    expect(pairingWarnings(stateOf(log), 2)).toEqual([
+      { kind: 'rematch', matchId: pairing(10, 1, a, b).matchId, playerA: a, playerB: b },
+      { kind: 'rematch', matchId: pairing(11, 2, c, d).matchId, playerA: c, playerB: d },
+      { kind: 'repeatBye', matchId: pairing(12, 3, e, null).matchId, playerId: e },
+    ]);
   });
 });
