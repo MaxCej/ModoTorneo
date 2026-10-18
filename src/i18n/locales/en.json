@@ -111,6 +111,15 @@
         "cancel": "Cancel",
         "confirm": "Drop"
       }
+    },
+    "rounds": {
+      "tabPlayers": "Players",
+      "tabRound": "Round {{round}}",
+      "pair": "Pair round {{round}}",
+      "needPlayers": "Register at least 2 players",
+      "pairFailed": "Could not pair the round ({{code}}): {{message}}",
+      "matchLine": "Table {{table}}: {{nameA}} vs {{nameB}}",
+      "byeLine": "Table {{table}}: {{name}} has a bye"
     }
   },
   "notFound": {
