@@ -118,6 +118,23 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
   - Tables are numbered from the top: the highest points play at table 1, and the bye gets
     the last table.
 
+## Standings and tiebreakers
+
+Swiss standings follow MTR Appendix C (`src/domain/standings.ts`). They count closed swiss
+rounds only: the open round's reported results and top cut rounds never change them.
+
+- **Order:** match points, then OMW%, GW% and OGW%, all descending. Percentages closer than
+  `1e-9` are equal.
+- **MW%:** match points / (3 × rounds played), at least 33%. A bye is a played round (a win).
+  A late entry's missed rounds do not count.
+- **GW%:** (3 × games won + drawn games) / (3 × games played), at least 33%. A bye is a 2-0.
+  Intentional draws and unplayed matches add no games.
+- **OMW% / OGW%:** the mean of each opponent's floored MW% / GW%, one entry per match. Byes are
+  not opponents. With no opponents they are 33%. Dropped opponents count with the rounds they
+  played.
+- **Ties:** players equal on every tiebreaker share the rank (1, 2, 2, 4) and are listed by
+  name. Dropped players and late entries are ranked like everyone else.
+
 ## Screens
 
 Every page renders inside one app shell with navigation (Tournaments, Data). Pages are loaded
@@ -132,7 +149,11 @@ lazily, one chunk each.
     table with the row for the current player count highlighted.
   - **Round controls:** "Pair round N" (random round 1, then by match points), "Close round N"
     once every result is in, and "Finish tournament" (with confirmation) after any closed round.
-  - **Tabs:** "Players" (registration) and one tab per round. The open round opens by default.
+  - **Tabs:** "Players" (registration), "Standings", and one tab per round. The open round opens
+    by default.
+  - **Standings tab:** rank, player, MP, W-L-D, OMW%, GW% and OGW% (2 decimals), with a
+    "Dropped" badge. "After round" picks any closed swiss round (the last one by default).
+    Before round 1 is closed it says so.
   - **Round tab:** one row per match with one-click results (2-0, 2-1, 1-2, 0-2, 1-1-1, ID,
     Unplayed) or a custom best-of-three score, always from the first player's side. A result
     can be changed until the round is closed. Each player shows points and W-L-D from earlier
@@ -247,8 +268,8 @@ The roadmap and design decisions live in the specs under `specs/`.
 ## Status
 
 A full swiss event runs in the browser: registration (registry players and guests, late entries,
-drops), swiss pairings, result entry, swaps and finishing, all autosaved to IndexedDB. Standings
-and tiebreakers are next.
+drops), swiss pairings, result entry, swaps, standings with MTR tiebreakers and finishing, all
+autosaved to IndexedDB. Restore, rollback and redo pairings are next.
 
 ## License
 
