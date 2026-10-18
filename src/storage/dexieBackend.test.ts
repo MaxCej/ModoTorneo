@@ -158,11 +158,35 @@ describe('DexieBackend tournaments', () => {
           format: 'modern',
           status: 'finished',
           eventCount: fixture.events.length,
+          playerCount: 8, // 8 registered, the dropped player included
           updatedAt: NOW,
           revision: '1',
         },
       ],
     });
+  });
+
+  it('counts registered players in the summary, not unregistered ones', async () => {
+    const { backend } = freshBackend();
+    let doc = newDoc({ name: 'Counted' });
+    for (const command of [
+      { type: 'PlayerRegistered', payload: { playerId: uuid(101), playerName: 'Alice' } },
+      { type: 'PlayerRegistered', payload: { playerId: uuid(102), playerName: 'Bruno' } },
+      { type: 'PlayerRegistered', payload: { playerId: uuid(103), playerName: 'Carmen' } },
+      { type: 'PlayerDropped', payload: { playerId: uuid(102) } },
+      { type: 'PlayerUnregistered', payload: { playerId: uuid(103) } },
+    ] as const) {
+      const result = execute(doc, command);
+      if (!result.ok) {
+        throw new Error(`expected ok, got ${JSON.stringify(result.error)}`);
+      }
+      doc = result.value.doc;
+    }
+
+    const saved = await backend.saveTournament(doc, null);
+    expect(saved.ok && saved.value.summary.playerCount).toBe(2);
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value[0].playerCount).toBe(2);
   });
 
   it('reflects TournamentDetailsChanged in the summary after save', async () => {
@@ -245,6 +269,59 @@ describe('DexieBackend tournaments', () => {
 
     const players = await backend.listPlayers();
     expect(players.ok || players.error.code).toBe('UNAVAILABLE');
+  });
+});
+
+describe('DexieBackend version 2 upgrade', () => {
+  /** A version 1 database (SPEC 03 schema) with rows that have no `playerCount`. */
+  async function seedVersion1(dbName: string, rows: Array<Record<string, unknown>>) {
+    const v1 = new Dexie(dbName);
+    v1.version(1).stores({
+      tournaments: 'id, date, format, status, updatedAt',
+      players: 'id, name',
+    });
+    await v1.table('tournaments').bulkAdd(rows);
+    v1.close();
+  }
+
+  const v1Row = (doc: TournamentDocument, name: string) => ({
+    id: doc.id,
+    doc,
+    revision: 3,
+    name,
+    date: '2026-10-11',
+    format: 'modern',
+    status: 'finished',
+    eventCount: doc.events.length,
+    updatedAt: NOW,
+  });
+
+  it('opens a version 1 database at version 2 with playerCount computed', async () => {
+    const { dbName, backend } = freshBackend();
+    await seedVersion1(dbName, [v1Row(fixtureDoc(), 'Friday Night Magic')]);
+
+    const list = await backend.listTournaments();
+    expect(list).toMatchObject({
+      ok: true,
+      value: [{ id: TOURNAMENT_ID, playerCount: 8, revision: '3' }],
+    });
+
+    const raw = new ModoTorneoDb(dbName);
+    await raw.open();
+    expect(raw.verno).toBe(2);
+    expect((await raw.tournaments.get(TOURNAMENT_ID))?.playerCount).toBe(8);
+    raw.close();
+  });
+
+  it('gives an invalid stored doc playerCount 0, and it still fails on load', async () => {
+    const { dbName, backend } = freshBackend();
+    const broken = { ...fixtureDoc(), schemaVersion: 7 } as unknown as TournamentDocument;
+    await seedVersion1(dbName, [v1Row(broken, 'Broken')]);
+
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value[0].playerCount).toBe(0);
+    const loaded = await backend.loadTournament(TOURNAMENT_ID);
+    expect(loaded.ok || loaded.error.code).toBe('INVALID_DOCUMENT');
   });
 });
 

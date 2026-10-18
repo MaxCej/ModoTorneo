@@ -21,6 +21,7 @@ export type TournamentSummary = {
   format: Format;
   status: TournamentStatus;
   eventCount: number; // doc.events.length, voided events included
+  playerCount: number; // every registered player, dropped included (Object.keys(state.players))
   updatedAt: IsoDateTime; // time of the last save
   revision: Revision;
 };

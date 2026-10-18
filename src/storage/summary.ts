@@ -15,6 +15,7 @@ export function toSummary(
     format: state.format,
     status: state.status,
     eventCount: doc.events.length,
+    playerCount: Object.keys(state.players).length,
     updatedAt,
     revision,
   };

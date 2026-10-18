@@ -64,6 +64,7 @@ function rowSummary(row: TournamentRow): TournamentSummary {
     format: row.format,
     status: row.status,
     eventCount: row.eventCount,
+    playerCount: row.playerCount,
     updatedAt: row.updatedAt,
     revision: String(row.revision),
   };
