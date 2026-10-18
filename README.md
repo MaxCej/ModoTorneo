@@ -130,6 +130,15 @@ lazily, one chunk each.
 - **Tournament (`/#/tournaments/<id>`):**
   - **Details:** inline edit of the fields the current status allows, and a "Recommended rounds"
     table with the row for the current player count highlighted.
+  - **Round controls:** "Pair round N" (random round 1, then by match points), "Close round N"
+    once every result is in, and "Finish tournament" (with confirmation) after any closed round.
+  - **Tabs:** "Players" (registration) and one tab per round. The open round opens by default.
+  - **Round tab:** one row per match with one-click results (2-0, 2-1, 1-2, 0-2, 1-1-1, ID,
+    Unplayed) or a custom best-of-three score, always from the first player's side. A result
+    can be changed until the round is closed. Each player shows points and W-L-D from earlier
+    rounds. "By player" lists everyone alphabetically with table and opponent. "Swap players"
+    trades two players' seats in matches without a result. Rematches and repeated byes show as
+    warnings.
   - **Registration:** the player registry on the left, registered players on the right. Click a
     player (or filter and press Enter) to register them; "Remove" undoes a registration in setup.
     "New player" adds to the registry and registers; "Add guest" registers for this tournament
@@ -237,8 +246,9 @@ The roadmap and design decisions live in the specs under `specs/`.
 
 ## Status
 
-Tournaments can be created, edited and filled with players (registry players and guests), with
-late entries and drops, all autosaved to IndexedDB. Swiss pairings and result entry are next.
+A full swiss event runs in the browser: registration (registry players and guests, late entries,
+drops), swiss pairings, result entry, swaps and finishing, all autosaved to IndexedDB. Standings
+and tiebreakers are next.
 
 ## License
 
