@@ -40,7 +40,7 @@ describe('AppLayout', () => {
 
     fireEvent.click(nav().getByRole('link', { name: 'Tournaments' }));
     expect(
-      await screen.findByRole('heading', { name: 'ModoTorneo', level: 1 }),
+      await screen.findByRole('heading', { name: 'Tournaments', level: 1 }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe('#/');
     expect(nav().getByRole('link', { name: 'Tournaments' })).toHaveAttribute('data-active', 'true');

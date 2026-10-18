@@ -10,7 +10,18 @@
     "label": "Main navigation"
   },
   "home": {
-    "dataLink": "Data"
+    "title": "Tournaments",
+    "newTournament": "New tournament",
+    "empty": "No tournaments yet. Create one to get started.",
+    "unavailable": "Local storage is unavailable in this browser.",
+    "loadFailed": "Could not load tournaments ({{code}}): {{message}}",
+    "columns": {
+      "name": "Name",
+      "date": "Date",
+      "format": "Format",
+      "status": "Status",
+      "players": "Players"
+    }
   },
   "notFound": {
     "title": "Page not found",
