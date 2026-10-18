@@ -83,6 +83,29 @@
       "range": "{{min}}–{{max}}",
       "rangeOpen": "{{min}}+",
       "none": "—"
+    },
+    "registration": {
+      "registry": "Players",
+      "registryFailed": "Could not load players ({{code}}): {{message}}",
+      "filter": "Filter",
+      "noMatch": "No player matches the filter.",
+      "registryEmpty": "No other players in the registry.",
+      "add": "Add",
+      "addLabel": "Add {{name}}",
+      "registered": "Registered ({{count}})",
+      "registeredEmpty": "No players registered yet.",
+      "guest": "Guest",
+      "dropped": "Dropped",
+      "remove": "Remove",
+      "removeLabel": "Remove {{name}}",
+      "drop": "Drop",
+      "dropLabel": "Drop {{name}}",
+      "dropModal": {
+        "title": "Drop player",
+        "message": "Drop {{name}}? They will not be paired in later rounds.",
+        "cancel": "Cancel",
+        "confirm": "Drop"
+      }
     }
   },
   "notFound": {

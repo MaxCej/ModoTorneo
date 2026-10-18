@@ -156,6 +156,26 @@ describe('TournamentPage', () => {
     expect(useTournamentStore.getState().saving).toBe(false);
   });
 
+  it('registers a clicked registry player and stores one PlayerRegistered', async () => {
+    await backend.saveTournament(autoDoc(0), null);
+    await backend.savePlayer({
+      id: uuid(150),
+      name: 'Alice',
+      createdAt: '2026-10-11T18:00:00.000Z',
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Alice' }));
+
+    expect(screen.getByRole('heading', { name: 'Registered (1)' })).toBeInTheDocument();
+    await idle();
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    expect(stored.ok && stored.value.doc.events.map((e) => e.type)).toEqual([
+      'TournamentCreated',
+      'PlayerRegistered',
+    ]);
+  });
+
   it('shows the conflict notice and clears it with the close button', async () => {
     const doc = autoDoc(2);
     await backend.saveTournament(doc, null);

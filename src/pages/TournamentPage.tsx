@@ -6,9 +6,10 @@ import type { Command } from '../domain';
 import { usePlayersStore } from '../store/playersStore';
 import { useTournamentStore, type SaveNotice } from '../store/tournamentStore';
 import { DetailsCard } from './tournament/DetailsCard';
+import { RegistrationPanel } from './tournament/RegistrationPanel';
 
 /** The panel whose command was rejected last, so its error shows under it. */
-type Panel = 'details';
+type Panel = 'details' | 'registration';
 
 export function TournamentPage() {
   const { t } = useTranslation();
@@ -19,6 +20,8 @@ export function TournamentPage() {
   const commandError = useTournamentStore((s) => s.commandError);
   const notice = useTournamentStore((s) => s.notice);
   const saving = useTournamentStore((s) => s.saving);
+  const players = usePlayersStore((s) => s.players);
+  const playersError = usePlayersStore((s) => s.error);
   const [errorPanel, setErrorPanel] = useState<Panel | null>(null);
 
   useEffect(() => {
@@ -78,6 +81,14 @@ export function TournamentPage() {
 
             <DetailsCard state={state} onDispatch={dispatchFrom('details')} />
             {commandError && errorPanel === 'details' && <CommandErrorAlert />}
+
+            <RegistrationPanel
+              state={state}
+              players={players}
+              playersError={playersError}
+              onDispatch={dispatchFrom('registration')}
+            />
+            {commandError && errorPanel === 'registration' && <CommandErrorAlert />}
           </>
         )}
       </Stack>
