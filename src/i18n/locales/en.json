@@ -140,7 +140,16 @@
       "customDraws": "Draws",
       "customSave": "Save",
       "customCancel": "Cancel",
-      "customInvalid": "Enter a best-of-three result: at most 2 wins each and 3 games in total."
+      "customInvalid": "Enter a best-of-three result: at most 2 wins each and 3 games in total.",
+      "close": "Close round {{round}}",
+      "progress": "{{reported}} of {{total}} results",
+      "finish": "Finish tournament",
+      "finishModal": {
+        "title": "Finish tournament",
+        "message": "Finish {{name}}? Results can no longer be entered or changed.",
+        "cancel": "Cancel",
+        "confirm": "Finish"
+      }
     }
   },
   "notFound": {

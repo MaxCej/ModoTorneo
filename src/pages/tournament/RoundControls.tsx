@@ -10,6 +10,7 @@ import {
   type Result,
   type TournamentState,
 } from '../../domain';
+import { FinishTournamentModal } from './FinishTournamentModal';
 
 type Props = {
   state: TournamentState;
@@ -22,16 +23,22 @@ type Props = {
 export function RoundControls({ state, onDispatch, onPaired }: Props) {
   const { t } = useTranslation();
   const [pairError, setPairError] = useState<DomainError | null>(null);
+  const [finishing, setFinishing] = useState(false);
 
   const current = state.rounds.at(-1);
-  const roundOpen = current !== undefined && !current.closed;
+  const openRound = current !== undefined && !current.closed ? current : null;
   const next = state.rounds.length + 1;
   const swissRounds = resolvedSwissRounds(state);
   const enoughPlayers = activePlayerCount(state) >= 2;
   const canPair =
     (state.status === 'setup' || state.status === 'running') &&
-    !roundOpen &&
+    openRound === null &&
     (swissRounds === null || next <= swissRounds);
+  const canFinish = state.status === 'running' && openRound === null && state.rounds.length > 0;
+
+  // Byes carry an implicit result, so only played matches count.
+  const played = openRound?.matches.filter((match) => match.playerB !== null) ?? [];
+  const reported = played.filter((match) => match.result !== null).length;
 
   function pair() {
     setPairError(null);
@@ -45,24 +52,46 @@ export function RoundControls({ state, onDispatch, onPaired }: Props) {
     }
   }
 
-  if (!canPair && pairError === null) {
+  if (!canPair && !canFinish && openRound === null && pairError === null) {
     return null;
   }
 
   return (
     <Stack gap="xs">
-      {canPair && (
-        <Group gap="sm">
-          <Button onClick={pair} disabled={!enoughPlayers}>
-            {t('tournament.rounds.pair', { round: next })}
-          </Button>
-          {!enoughPlayers && (
+      <Group gap="sm">
+        {canPair && (
+          <>
+            <Button onClick={pair} disabled={!enoughPlayers}>
+              {t('tournament.rounds.pair', { round: next })}
+            </Button>
+            {!enoughPlayers && (
+              <Text size="sm" c="dimmed">
+                {t('tournament.rounds.needPlayers')}
+              </Text>
+            )}
+          </>
+        )}
+        {openRound !== null && (
+          <>
+            <Button
+              disabled={reported < played.length}
+              onClick={() =>
+                onDispatch({ type: 'RoundClosed', payload: { round: openRound.number } })
+              }
+            >
+              {t('tournament.rounds.close', { round: openRound.number })}
+            </Button>
             <Text size="sm" c="dimmed">
-              {t('tournament.rounds.needPlayers')}
+              {t('tournament.rounds.progress', { reported, total: played.length })}
             </Text>
-          )}
-        </Group>
-      )}
+          </>
+        )}
+        {canFinish && (
+          <Button variant="light" onClick={() => setFinishing(true)}>
+            {t('tournament.rounds.finish')}
+          </Button>
+        )}
+      </Group>
       {pairError && (
         <Alert color="red">
           {t('tournament.rounds.pairFailed', {
@@ -70,6 +99,16 @@ export function RoundControls({ state, onDispatch, onPaired }: Props) {
             message: pairError.message,
           })}
         </Alert>
+      )}
+      {finishing && (
+        <FinishTournamentModal
+          tournamentName={state.name}
+          onCancel={() => setFinishing(false)}
+          onConfirm={() => {
+            onDispatch({ type: 'TournamentFinished', payload: {} });
+            setFinishing(false);
+          }}
+        />
       )}
     </Stack>
   );
