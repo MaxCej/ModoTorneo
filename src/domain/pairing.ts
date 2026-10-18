@@ -7,6 +7,9 @@ import type { Pairing, RoundPairedPayload } from './schemas/events';
 import { activePlayerCount, type TournamentState } from './state';
 import { resolvedSwissRounds } from './validate';
 
+/** Backtracking steps (opponents tried) per rematch allowance. */
+export const SEARCH_BUDGET = 100_000;
+
 /** `random` returns a number in [0, 1), like `Math.random`. */
 export type PairingDeps = { random: () => number; newId: () => Uuid };
 
@@ -34,7 +37,7 @@ export function pairSwissRound(
     active.filter((record) => record !== bye),
     deps.random,
   );
-  const pairs = pairInOrder(field);
+  const pairs = pairWithFewestRematches(field);
 
   const pairings: Pairing[] = pairs.map(([a, b], i) => ({
     matchId: deps.newId(),
@@ -99,11 +102,64 @@ function orderField(field: PlayerRecord[], random: () => number): PlayerRecord[]
   return shuffled.sort((a, b) => b.matchPoints - a.matchPoints);
 }
 
-/** Pairs neighbours in list order: 1 vs 2, 3 vs 4… */
-function pairInOrder(field: PlayerRecord[]): Array<[PlayerRecord, PlayerRecord]> {
-  const pairs: Array<[PlayerRecord, PlayerRecord]> = [];
-  for (let i = 0; i + 1 < field.length; i += 2) {
-    pairs.push([field[i], field[i + 1]]);
+/**
+ * Tries 0 allowed rematches, then 1, 2… up to `floor(n / 2)`, and returns the first pairing
+ * found. An attempt that runs out of `SEARCH_BUDGET` steps counts as failed. With every
+ * pairing allowed to be a rematch, the first branch succeeds, so this always returns.
+ */
+function pairWithFewestRematches(field: PlayerRecord[]): Array<[PlayerRecord, PlayerRecord]> {
+  const opponents = field.map((record) => new Set(record.opponents));
+  for (let allowed = 0; allowed <= Math.floor(field.length / 2); allowed++) {
+    const pairs = search(field, opponents, allowed);
+    if (pairs !== null) {
+      return pairs.map(([i, j]) => [field[i], field[j]]);
+    }
   }
-  return pairs;
+  throw new Error('pairWithFewestRematches: unreachable');
+}
+
+/**
+ * Backtracking: the first unpaired player takes the first possible opponent in list order
+ * (same points first, then lower: the odd player floats down). Returns index pairs, or null
+ * on a dead end or when the budget runs out.
+ */
+function search(
+  field: PlayerRecord[],
+  opponents: Set<Uuid>[],
+  allowedRematches: number,
+): Array<[number, number]> | null {
+  const paired = new Array<boolean>(field.length).fill(false);
+  const pairs: Array<[number, number]> = [];
+  let steps = 0;
+
+  function next(rematchesLeft: number): boolean {
+    const i = paired.indexOf(false);
+    if (i === -1) {
+      return true;
+    }
+    paired[i] = true;
+    for (let j = i + 1; j < field.length; j++) {
+      if (paired[j]) {
+        continue;
+      }
+      if (++steps > SEARCH_BUDGET) {
+        return false;
+      }
+      const rematch = opponents[i].has(field[j].playerId);
+      if (rematch && rematchesLeft === 0) {
+        continue;
+      }
+      paired[j] = true;
+      pairs.push([i, j]);
+      if (next(rematchesLeft - (rematch ? 1 : 0))) {
+        return true;
+      }
+      pairs.pop();
+      paired[j] = false;
+    }
+    paired[i] = false;
+    return false;
+  }
+
+  return next(allowedRematches) && steps <= SEARCH_BUDGET ? pairs : null;
 }
