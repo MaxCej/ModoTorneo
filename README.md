@@ -83,6 +83,7 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
 | `PlayerDropped`            | playerId                                                        |
 | `TournamentDetailsChanged` | any of name, date, location, format, swissRounds (at least one) |
 | `RoundPaired`              | round, stage (`swiss` or `topCut`), pairings                    |
+| `PlayersSwapped`           | round, playerA, playerB: trade seats in the open swiss round    |
 | `ResultReported`           | matchId, result (games won A/B, draws, kind)                    |
 | `RoundClosed`              | round                                                           |
 | `TopCutStarted`            | size (4, 8, 16 or 32)                                           |
@@ -93,6 +94,8 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
   active players (MTR Appendix E, `src/domain/swissRounds.ts`). Late entries do not change it.
 - **Editing details:** format can change only in setup. Swiss rounds can change until swiss
   ends, but never below the rounds already paired.
+- **Swapping players:** two active players trade seats in the open swiss round, only while
+  neither of their matches has a reported result. A swap may move the bye.
 - **Guests:** a `PlayerRegistered` with `guest: true` plays in that tournament only. Guests are
   never added to the global player registry.
 

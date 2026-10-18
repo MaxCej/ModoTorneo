@@ -18,7 +18,8 @@ export type DomainErrorCode =
   | 'MISSING_RESULTS'
   | 'TOP_CUT_DRAW'
   | 'INVALID_ROLLBACK_TARGET'
-  | 'INVALID_DETAILS';
+  | 'INVALID_DETAILS'
+  | 'INVALID_SWAP';
 
 export type DomainError = { code: DomainErrorCode; message: string; seq?: number };
 
