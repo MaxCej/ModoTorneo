@@ -118,8 +118,22 @@
       "pair": "Pair round {{round}}",
       "needPlayers": "Register at least 2 players",
       "pairFailed": "Could not pair the round ({{code}}): {{message}}",
-      "matchLine": "Table {{table}}: {{nameA}} vs {{nameB}}",
-      "byeLine": "Table {{table}}: {{name}} has a bye"
+      "table": "Table {{table}}",
+      "tableLabel": "Table {{table}}",
+      "bye": "Bye",
+      "playerLabel": "{{name}} ({{points}} pts, {{wins}}-{{losses}}-{{draws}})",
+      "noResult": "No result",
+      "score": "{{winsA}}-{{winsB}}",
+      "scoreWithDraws": "{{winsA}}-{{winsB}}-{{draws}}",
+      "presets": {
+        "win20": "2-0",
+        "win21": "2-1",
+        "loss12": "1-2",
+        "loss02": "0-2",
+        "draw111": "1-1-1",
+        "intentionalDraw": "ID",
+        "unplayed": "Unplayed"
+      }
     }
   },
   "notFound": {

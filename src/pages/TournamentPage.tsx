@@ -22,7 +22,7 @@ import { RoundControls } from './tournament/RoundControls';
 import { RoundPanel } from './tournament/RoundPanel';
 
 /** The panel whose command was rejected last, so its error shows under it. */
-type Panel = 'details' | 'registration' | 'rounds';
+type Panel = 'details' | 'registration' | 'rounds' | 'round';
 
 const PLAYERS_TAB = 'players';
 const roundTab = (round: number) => `round-${round}`;
@@ -145,7 +145,10 @@ export function TournamentPage() {
               </Tabs.Panel>
               {state.rounds.map((round) => (
                 <Tabs.Panel key={round.number} value={roundTab(round.number)} pt="md">
-                  <RoundPanel state={state} round={round} />
+                  <Stack>
+                    <RoundPanel state={state} round={round} onDispatch={dispatchFrom('round')} />
+                    {commandError && errorPanel === 'round' && <CommandErrorAlert />}
+                  </Stack>
                 </Tabs.Panel>
               ))}
             </Tabs>
