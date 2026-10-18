@@ -14,11 +14,14 @@ import {
   addClosedRound,
 } from './fixtures/builders';
 import { apply, effectiveEvents, reduce, stateAt } from './reduce';
-import type { Pairing, TournamentEvent } from './schemas/events';
+import type { Pairing, TournamentCreatedPayload, TournamentEvent } from './schemas/events';
 import { IMPLICIT_BYE_RESULT, type MatchResult } from './schemas/matchResult';
 import type { TournamentState } from './state';
 
 const [P1, P2, P3, P4, P5] = PLAYERS;
+
+/** More players than `PLAYERS`, for the auto rounds table. */
+const PLAYERS_16 = Array.from({ length: 16 }, (_, i) => uuid(300 + i));
 
 const WIN_B: MatchResult = { winsA: 0, winsB: 2, draws: 0, kind: 'played' };
 
@@ -249,6 +252,69 @@ describe('reduce: swiss rounds', () => {
       swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, null)]),
     );
     expect(corruptError(events)).toMatchObject({ code: 'INVALID_PAIRINGS', seq: 6 });
+  });
+});
+
+describe('reduce: auto swiss rounds', () => {
+  const auto = { ...CREATED_PAYLOAD, swissRounds: null };
+
+  /** Every active player of `registeredLog(count)` paired in order; the last one gets a bye if odd. */
+  const round1 = (count: number) => {
+    const ids = PLAYERS_16.slice(0, count);
+    return swiss(
+      1,
+      Array.from({ length: Math.ceil(count / 2) }, (_, i) =>
+        pairing(i + 1, i + 1, ids[2 * i], ids[2 * i + 1] ?? null),
+      ),
+    );
+  };
+
+  /** The first `count` players of `PLAYERS_16` registered. */
+  const autoLog = (count: number, created: TournamentCreatedPayload = auto) => {
+    const log = logBuilder(created);
+    for (const [i, playerId] of PLAYERS_16.slice(0, count).entries()) {
+      log.add('PlayerRegistered', { playerId, playerName: `Player ${i + 1}` });
+    }
+    return log;
+  };
+
+  it('keeps swissRounds null in setup', () => {
+    expect(reduce(autoLog(9).events, TOURNAMENT_ID).swissRounds).toBeNull();
+  });
+
+  it.each([
+    [5, 3],
+    [9, 4],
+  ])('resolves null to the recommendation for %i active players', (count, expected) => {
+    const { events } = autoLog(count).add('RoundPaired', round1(count));
+    expect(reduce(events, TOURNAMENT_ID).swissRounds).toBe(expected);
+  });
+
+  it('counts only active players', () => {
+    // 10 registered, 2 dropped: 8 active → 3 rounds (10 would give 4).
+    const log = autoLog(10)
+      .add('PlayerDropped', { playerId: PLAYERS_16[8] })
+      .add('PlayerDropped', { playerId: PLAYERS_16[9] })
+      .add('RoundPaired', round1(8));
+    expect(reduce(log.events, TOURNAMENT_ID).swissRounds).toBe(3);
+  });
+
+  it('never changes an explicit value when pairing', () => {
+    const { events } = autoLog(9, { ...CREATED_PAYLOAD, swissRounds: 7 }).add(
+      'RoundPaired',
+      round1(9),
+    );
+    expect(reduce(events, TOURNAMENT_ID).swissRounds).toBe(7);
+  });
+
+  it('checks TOO_MANY_ROUNDS against the resolved value', () => {
+    // 2 active players → 1 round.
+    const log = addClosedRound(autoLog(2), 1, 'swiss', [
+      pairing(1, 1, PLAYERS_16[0], PLAYERS_16[1]),
+    ]);
+    expect(reduce(log.events, TOURNAMENT_ID).swissRounds).toBe(1);
+    log.add('RoundPaired', swiss(2, [pairing(2, 1, PLAYERS_16[0], PLAYERS_16[1])]));
+    expect(corruptError(log.events)).toMatchObject({ code: 'TOO_MANY_ROUNDS' });
   });
 });
 

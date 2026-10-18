@@ -39,6 +39,13 @@ const samples: Record<TournamentEventType, Sample> = {
         format: 'modern',
         swissRounds: 0,
       },
+      'non-integer swiss rounds': {
+        name: 'FNM',
+        date: '2026-10-11',
+        location: '',
+        format: 'modern',
+        swissRounds: 2.5,
+      },
       'blank name': {
         name: '  ',
         date: '2026-10-11',
@@ -111,6 +118,15 @@ const samples: Record<TournamentEventType, Sample> = {
 };
 
 describe('TournamentEventSchema', () => {
+  it('accepts TournamentCreated with swissRounds null (auto)', () => {
+    const event = {
+      ...envelope,
+      type: 'TournamentCreated',
+      payload: { ...(samples.TournamentCreated.valid as object), swissRounds: null },
+    };
+    expect(TournamentEventSchema.parse(event)).toEqual(event);
+  });
+
   describe.each(Object.entries(samples))('%s', (type, { valid, invalid }) => {
     it('parses a valid sample', () => {
       const event = { ...envelope, type, payload: valid };

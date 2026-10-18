@@ -34,7 +34,7 @@ export const TournamentCreatedPayloadSchema = z.object({
   date: IsoDateSchema,
   location: z.string().trim().max(100),
   format: FormatSchema,
-  swissRounds: RoundNumberSchema,
+  swissRounds: RoundNumberSchema.nullable(), // null = auto, fixed by the first swiss RoundPaired
 });
 export type TournamentCreatedPayload = z.infer<typeof TournamentCreatedPayloadSchema>;
 

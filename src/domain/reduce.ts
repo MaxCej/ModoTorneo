@@ -3,7 +3,7 @@ import type { Uuid } from './schemas/common';
 import type { TournamentEvent } from './schemas/events';
 import { IMPLICIT_BYE_RESULT } from './schemas/matchResult';
 import { initialState, type Round, type TournamentState } from './state';
-import { validate } from './validate';
+import { resolvedSwissRounds, validate } from './validate';
 
 /**
  * Applies one event that `validate` already accepted. Never mutates `state`.
@@ -61,9 +61,12 @@ export function apply(
         result: pairing.playerB === null ? IMPLICIT_BYE_RESULT : null,
       }));
       const status = stage === 'swiss' && state.status === 'setup' ? 'running' : state.status;
+      // The first swiss round fixes an auto (null) round count from the active players.
+      const swissRounds = stage === 'swiss' ? resolvedSwissRounds(state) : state.swissRounds;
       return {
         ...next,
         status,
+        swissRounds,
         rounds: [...state.rounds, { number: round, stage, closed: false, matches }],
       };
     }

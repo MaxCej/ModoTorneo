@@ -8,7 +8,8 @@ import type {
   TournamentFinished,
 } from './schemas/events';
 import { matchOutcome } from './schemas/matchResult';
-import type { TournamentState } from './state';
+import { activePlayerCount, type TournamentState } from './state';
+import { recommendedSwissRounds } from './swissRounds';
 
 /**
  * Checks one event against the state built from every event before it.
@@ -158,7 +159,7 @@ function validateTopCutStarted(state: TournamentState, event: TopCutStarted): Do
       event.seq,
     );
   }
-  const active = Object.values(state.players).filter((player) => !player.dropped).length;
+  const active = activePlayerCount(state);
   if (event.payload.size > active) {
     return domainError(
       'WRONG_STATUS',
@@ -193,10 +194,12 @@ function validateSwissPairing(state: TournamentState, event: RoundPaired): Domai
   if (roundError !== null) {
     return roundError;
   }
-  if (event.payload.round > state.swissRounds) {
+  const swissRounds = resolvedSwissRounds(state);
+  // null only with fewer than 2 active players, which the active-player check below rejects.
+  if (swissRounds !== null && event.payload.round > swissRounds) {
     return domainError(
       'TOO_MANY_ROUNDS',
-      `The tournament has only ${state.swissRounds} swiss rounds`,
+      `The tournament has only ${swissRounds} swiss rounds`,
       event.seq,
     );
   }
@@ -227,6 +230,14 @@ function validateSwissPairing(state: TournamentState, event: RoundPaired): Domai
     );
   }
   return null;
+}
+
+/**
+ * The stored `swissRounds`, or for `null` (auto) the recommendation for the active players.
+ * Shared with the reducer, which stores this value on the first swiss `RoundPaired`.
+ */
+export function resolvedSwissRounds(state: TournamentState): number | null {
+  return state.swissRounds ?? recommendedSwissRounds(activePlayerCount(state));
 }
 
 /** The previous round (if any) is closed and `round` is the next number. */
