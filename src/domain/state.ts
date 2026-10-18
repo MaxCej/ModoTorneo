@@ -8,6 +8,7 @@ export type PlayerEntry = {
   playerId: Uuid;
   playerName: string;
   deckId?: Uuid;
+  guest: boolean; // false when the event omits it
   dropped: boolean;
   registeredAtRound: number; // 0 = before round 1
 };

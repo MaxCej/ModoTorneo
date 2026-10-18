@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseTournamentDocument } from './document';
-import { PLAYERS, TOURNAMENT_ID, matchId } from './fixtures/builders';
+import { PLAYERS, TOURNAMENT_ID, logBuilder, matchId } from './fixtures/builders';
 import fixture from './fixtures/top4-8players.json';
 import { buildTop4Fixture } from './fixtures/top4-8players';
 
@@ -25,6 +25,30 @@ function parsedFixture() {
 describe('parseTournamentDocument', () => {
   it('fixture JSON matches its generator (regenerate with fixtures/generate.ts)', () => {
     expect(fixture).toEqual(buildTop4Fixture());
+  });
+
+  it('keeps the guest flag through a JSON round trip', () => {
+    const doc = {
+      schemaVersion: 1,
+      id: TOURNAMENT_ID,
+      events: logBuilder()
+        .add('PlayerRegistered', { playerId: P1, playerName: 'Guest', guest: true })
+        .add('PlayerRegistered', { playerId: P4, playerName: 'Diego' }).events,
+    };
+    const first = parseTournamentDocument(JSON.parse(JSON.stringify(doc)));
+    if (!first.ok) {
+      throw new Error(`expected ok, got ${JSON.stringify(first.error)}`);
+    }
+    const second = parseTournamentDocument(JSON.parse(JSON.stringify(first.value.doc)));
+    if (!second.ok) {
+      throw new Error(`expected ok, got ${JSON.stringify(second.error)}`);
+    }
+
+    expect(second.value.doc).toEqual(first.value.doc);
+    expect(second.value.doc.events[1].payload).toMatchObject({ guest: true });
+    expect(second.value.doc.events[2].payload).not.toHaveProperty('guest');
+    expect(second.value.state.players[P1].guest).toBe(true);
+    expect(second.value.state.players[P4].guest).toBe(false);
   });
 
   it('parses the Top 4 fixture into a finished tournament', () => {

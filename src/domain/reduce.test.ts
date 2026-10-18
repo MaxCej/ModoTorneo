@@ -57,11 +57,31 @@ describe('reduce', () => {
     const state = reduce(events, TOURNAMENT_ID);
 
     expect(state.players).toEqual({
-      [P1]: { playerId: P1, playerName: 'Alice', deckId, dropped: false, registeredAtRound: 0 },
-      [P2]: { playerId: P2, playerName: 'Bob', dropped: false, registeredAtRound: 0 },
+      [P1]: {
+        playerId: P1,
+        playerName: 'Alice',
+        deckId,
+        guest: false,
+        dropped: false,
+        registeredAtRound: 0,
+      },
+      [P2]: { playerId: P2, playerName: 'Bob', guest: false, dropped: false, registeredAtRound: 0 },
     });
     expect(state.players[P2]).not.toHaveProperty('deckId');
     expect(state.lastSeq).toBe(3);
+  });
+
+  it('stores the guest flag, false when the event omits it', () => {
+    const { events } = logBuilder()
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice' })
+      .add('PlayerRegistered', { playerId: P2, playerName: 'Bob', guest: false })
+      .add('PlayerRegistered', { playerId: P3, playerName: 'Guest', guest: true });
+
+    const { players } = reduce(events, TOURNAMENT_ID);
+
+    expect(players[P1].guest).toBe(false);
+    expect(players[P2].guest).toBe(false);
+    expect(players[P3].guest).toBe(true);
   });
 
   it('marks a dropped player without removing them', () => {

@@ -391,7 +391,7 @@ describe('validate: TopCutStarted', () => {
     const ids = Array.from({ length: size }, (_, i) => uuid(200 + i));
     const players = ids.map((id) => [
       id,
-      { playerId: id, playerName: id, dropped: false, registeredAtRound: 0 },
+      { playerId: id, playerName: id, guest: false, dropped: false, registeredAtRound: 0 },
     ]);
     const crowded = { ...reduceLog(swissDone()), players: Object.fromEntries(players) };
     expect(validateNext(crowded, 'TopCutStarted', { size })).toBeNull();

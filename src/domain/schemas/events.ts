@@ -42,6 +42,7 @@ export const PlayerRegisteredPayloadSchema = z.object({
   playerId: UuidSchema,
   playerName: z.string().trim().min(1).max(100),
   deckId: UuidSchema.optional(),
+  guest: z.boolean().optional(), // missing = false. Guests are never added to the global registry.
 });
 export type PlayerRegisteredPayload = z.infer<typeof PlayerRegisteredPayloadSchema>;
 

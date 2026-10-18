@@ -53,6 +53,7 @@ const samples: Record<TournamentEventType, Sample> = {
     invalid: {
       'missing playerName': { playerId: P1 },
       'invalid deckId': { playerId: P1, playerName: 'Alice', deckId: 'burn' },
+      'non-boolean guest': { playerId: P1, playerName: 'Alice', guest: 'yes' },
     },
   },
   PlayerDropped: {

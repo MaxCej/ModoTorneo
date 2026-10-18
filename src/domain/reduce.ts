@@ -29,11 +29,12 @@ export function apply(
       throw new Error('apply: TournamentCreated must be the first event');
 
     case 'PlayerRegistered': {
-      const { playerId, playerName, deckId } = event.payload;
+      const { playerId, playerName, deckId, guest } = event.payload;
       const entry = {
         playerId,
         playerName,
         ...(deckId === undefined ? {} : { deckId }),
+        guest: guest ?? false,
         dropped: false,
         registeredAtRound: state.rounds.length,
       };

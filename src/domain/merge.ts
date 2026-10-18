@@ -53,6 +53,7 @@ export function compareLogs(
 /**
  * One global `Player` per registered player, named from the registration snapshot.
  * `createdAt` is the `at` of the effective `PlayerRegistered` event (voided ones are ignored).
+ * Guests get no entry, so they never reach the registry.
  */
 export function playersFromDocument(doc: TournamentDocument, state: TournamentState): Player[] {
   const registeredAt = new Map<string, string>();
@@ -63,7 +64,7 @@ export function playersFromDocument(doc: TournamentDocument, state: TournamentSt
   }
   return Object.values(state.players).flatMap((entry) => {
     const createdAt = registeredAt.get(entry.playerId);
-    return createdAt === undefined
+    return createdAt === undefined || entry.guest
       ? []
       : [{ id: entry.playerId, name: entry.playerName, createdAt }];
   });
