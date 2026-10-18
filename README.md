@@ -98,6 +98,27 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
 
 `Player` is a global entity shared across tournaments. Decks are defined in a later spec.
 
+## Screens
+
+Every page renders inside one app shell with navigation (Tournaments, Data). Pages are loaded
+lazily, one chunk each.
+
+- **Tournaments (`/#/`):** every stored tournament with date, format, status and player count,
+  read from the summary rows only. "New tournament" opens the create form.
+- **New tournament (`/#/tournaments/new`):** name, date (today by default), location, format and
+  swiss rounds: "Auto" (fixed from the player count when round 1 is paired) or a custom number.
+- **Tournament (`/#/tournaments/<id>`):**
+  - **Details:** inline edit of the fields the current status allows, and a "Recommended rounds"
+    table with the row for the current player count highlighted.
+  - **Registration:** the player registry on the left, registered players on the right. Click a
+    player (or filter and press Enter) to register them; "Remove" undoes a registration in setup.
+    "New player" adds to the registry and registers; "Add guest" registers for this tournament
+    only. A name that already exists needs a second Enter. While running, late entries are
+    allowed and "Drop" asks for confirmation.
+  - **Autosave:** every change is applied at once and saved in order. If another tab saved first,
+    or the tournament was deleted elsewhere, the page reloads the stored version and says so.
+- **Data (`/#/data`):** export, import and delete (see below).
+
 ## Storage
 
 The storage layer lives in `src/storage/`. Callers use the `StorageBackend` interface returned by
@@ -105,7 +126,8 @@ The storage layer lives in `src/storage/`. Callers use the `StorageBackend` inte
 backend will implement the same interface later.
 
 - **Tables:** `tournaments` (one row per tournament: the whole `TournamentDocument` plus summary
-  fields recomputed on every save) and `players` (the global player registry).
+  fields recomputed on every save, including `playerCount`) and `players` (the global player
+  registry). Schema changes are new Dexie versions with an upgrade function (now version 2).
 - **Validation:** every document is checked with `parseTournamentDocument` on save and on load. A
   corrupted row is reported as `INVALID_DOCUMENT`, never loaded silently.
   Players are checked with `PlayerSchema` the same way; an invalid player is `INVALID_PLAYER`.
@@ -161,7 +183,9 @@ players.
 | CI / hosting          | GitHub Actions, deployed to GitHub Pages from `main`              |
 | Validation            | Zod (schemas for every persisted JSON)                            |
 | Local storage         | Dexie (IndexedDB)                                                 |
-| Planned (later specs) | Zustand, Octokit, `vite-plugin-pwa`                               |
+| UI state              | Zustand                                                           |
+| Forms and dates       | `@mantine/form`, `@mantine/dates` with dayjs                      |
+| Planned (later specs) | Octokit, `vite-plugin-pwa`                                        |
 
 ## Development
 
@@ -193,8 +217,8 @@ The roadmap and design decisions live in the specs under `specs/`.
 
 ## Status
 
-Domain model and local storage in place: event-sourced tournament documents, IndexedDB storage,
-and a Data page for JSON export/import. Tournament screens are next.
+Tournaments can be created, edited and filled with players (registry players and guests), with
+late entries and drops, all autosaved to IndexedDB. Swiss pairings and result entry are next.
 
 ## License
 
