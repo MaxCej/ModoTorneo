@@ -11,6 +11,9 @@ export type PlayerRecord = {
   draws: number; // 'draw' and intentional draws
   byes: number;
   opponents: Uuid[]; // every opponent faced, in round order, byes excluded
+  gamesWon: number; // a bye adds 2 (IMPLICIT_BYE_RESULT)
+  gamesLost: number;
+  gamesDrawn: number; // drawn games inside a played match; intentional draws and unplayed add none
 };
 
 /** Match points one side earns from an outcome. */
@@ -46,6 +49,9 @@ export function playerRecords(
       draws: 0,
       byes: 0,
       opponents: [],
+      gamesWon: 0,
+      gamesLost: 0,
+      gamesDrawn: 0,
     };
   }
 
@@ -57,11 +63,13 @@ export function playerRecords(
       if (match.result === null) {
         continue;
       }
-      const outcome = matchOutcome(match.result);
+      const { result } = match;
+      const outcome = matchOutcome(result);
       const a = records[match.playerA];
       const b = match.playerB === null ? undefined : records[match.playerB];
       if (a !== undefined) {
         score(a, outcome, 'A');
+        countGames(a, result.winsA, result.winsB, result.draws);
         if (match.playerB === null) {
           a.byes += 1;
         } else {
@@ -70,6 +78,7 @@ export function playerRecords(
       }
       if (b !== undefined) {
         score(b, outcome, 'B');
+        countGames(b, result.winsB, result.winsA, result.draws);
         b.opponents.push(match.playerA);
       }
     }
@@ -87,4 +96,11 @@ function score(record: PlayerRecord, outcome: MatchOutcome, side: 'A' | 'B'): vo
   } else {
     record.losses += 1;
   }
+}
+
+/** Intentional draws and unplayed matches are stored with 0 games, so they add none. */
+function countGames(record: PlayerRecord, won: number, lost: number, drawn: number): void {
+  record.gamesWon += won;
+  record.gamesLost += lost;
+  record.gamesDrawn += drawn;
 }

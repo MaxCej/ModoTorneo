@@ -20,11 +20,13 @@ import { DetailsCard } from './tournament/DetailsCard';
 import { RegistrationPanel } from './tournament/RegistrationPanel';
 import { RoundControls } from './tournament/RoundControls';
 import { RoundPanel } from './tournament/RoundPanel';
+import { StandingsPanel } from './tournament/StandingsPanel';
 
 /** The panel whose command was rejected last, so its error shows under it. */
 type Panel = 'details' | 'registration' | 'rounds' | 'round';
 
 const PLAYERS_TAB = 'players';
+const STANDINGS_TAB = 'standings';
 const roundTab = (round: number) => `round-${round}`;
 
 /** The open round, else the last round, else "Players". */
@@ -124,6 +126,7 @@ export function TournamentPage() {
             <Tabs value={selectedTab ?? defaultTab(state)} onChange={selectTab} keepMounted={false}>
               <Tabs.List>
                 <Tabs.Tab value={PLAYERS_TAB}>{t('tournament.rounds.tabPlayers')}</Tabs.Tab>
+                <Tabs.Tab value={STANDINGS_TAB}>{t('tournament.standings.tab')}</Tabs.Tab>
                 {state.rounds.map((round) => (
                   <Tabs.Tab key={round.number} value={roundTab(round.number)}>
                     {t('tournament.rounds.tabRound', { round: round.number })}
@@ -142,6 +145,9 @@ export function TournamentPage() {
                   />
                   {commandError && errorPanel === 'registration' && <CommandErrorAlert />}
                 </Stack>
+              </Tabs.Panel>
+              <Tabs.Panel value={STANDINGS_TAB} pt="md">
+                <StandingsPanel state={state} />
               </Tabs.Panel>
               {state.rounds.map((round) => (
                 <Tabs.Panel key={round.number} value={roundTab(round.number)} pt="md">
