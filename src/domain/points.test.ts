@@ -64,6 +64,9 @@ describe('playerRecords', () => {
       draws: 0,
       byes: 0,
       opponents: [P2],
+      gamesWon: 2,
+      gamesLost: 1,
+      gamesDrawn: 0,
     });
     expect(records[P2]).toMatchObject({ matchPoints: 0, wins: 0, losses: 1, opponents: [P1] });
     expect(records[P3]).toMatchObject({ matchPoints: 1, draws: 1, opponents: [P4] });
@@ -102,7 +105,36 @@ describe('playerRecords', () => {
       draws: 0,
       byes: 1,
       opponents: [],
+      gamesWon: 2,
+      gamesLost: 0,
+      gamesDrawn: 0,
     });
+  });
+
+  it('counts games: a 2-1 for A, a 1-1-1 for both', () => {
+    const records = recordsOf(oneRound([result(2, 1), result(1, 1, 1)]));
+    const games = (id: string) => {
+      const { gamesWon, gamesLost, gamesDrawn } = records[id];
+      return [gamesWon, gamesLost, gamesDrawn];
+    };
+    expect(games(P1)).toEqual([2, 1, 0]);
+    expect(games(P2)).toEqual([1, 2, 0]);
+    expect(games(P3)).toEqual([1, 1, 1]);
+    expect(games(P4)).toEqual([1, 1, 1]);
+  });
+
+  it('counts games for player B wins', () => {
+    const records = recordsOf(oneRound([result(0, 2), result(1, 2, 1)]));
+    expect(records[P2]).toMatchObject({ gamesWon: 2, gamesLost: 0, gamesDrawn: 0 });
+    expect(records[P1]).toMatchObject({ gamesWon: 0, gamesLost: 2, gamesDrawn: 0 });
+    expect(records[P4]).toMatchObject({ gamesWon: 2, gamesLost: 1, gamesDrawn: 1 });
+  });
+
+  it('adds no games for an intentional draw or an unplayed match', () => {
+    const records = recordsOf(oneRound([ID, UNPLAYED]));
+    for (const id of [P1, P2, P3, P4]) {
+      expect(records[id]).toMatchObject({ gamesWon: 0, gamesLost: 0, gamesDrawn: 0 });
+    }
   });
 
   it('ignores matches without a result in the open round', () => {
@@ -159,6 +191,9 @@ describe('playerRecords', () => {
       draws: 0,
       byes: 0,
       opponents: [],
+      gamesWon: 0,
+      gamesLost: 0,
+      gamesDrawn: 0,
     });
     expect(Object.keys(records)).toHaveLength(5);
     expect(records[P5]).toBeUndefined();
