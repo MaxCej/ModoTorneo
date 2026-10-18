@@ -35,6 +35,7 @@ export type StorageErrorCode =
   | 'NOT_FOUND' // no tournament with that id
   | 'CONFLICT' // expectedRevision does not match the stored one
   | 'INVALID_DOCUMENT' // parseTournamentDocument failed; `cause` holds the DomainError
+  | 'INVALID_PLAYER' // PlayerSchema failed on save or load; `cause` holds the DomainError
   | 'UNAVAILABLE'; // IndexedDB cannot be opened or a transaction failed
 
 export type StorageError = { code: StorageErrorCode; message: string; cause?: DomainError };

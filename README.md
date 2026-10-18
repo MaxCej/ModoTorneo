@@ -108,6 +108,7 @@ backend will implement the same interface later.
   fields recomputed on every save) and `players` (the global player registry).
 - **Validation:** every document is checked with `parseTournamentDocument` on save and on load. A
   corrupted row is reported as `INVALID_DOCUMENT`, never loaded silently.
+  Players are checked with `PlayerSchema` the same way; an invalid player is `INVALID_PLAYER`.
 - **Revisions:** each save takes the revision it expects (`null` to create) and returns the new
   one. A mismatch returns `CONFLICT`, so two tabs cannot overwrite each other.
 - **Persistence:** the app asks the browser for persistent storage on start

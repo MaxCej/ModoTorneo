@@ -289,6 +289,50 @@ describe('DexieBackend players', () => {
     expect(list.ok && list.value.map((p) => p.name)).toEqual(['alice', 'Bruno', 'Carmen', 'Diego']);
   });
 
+  it('stores the parsed player, with the name trimmed', async () => {
+    const { backend } = freshBackend();
+    await backend.savePlayer({ id: uuid(101), name: '  Alice ', createdAt: CREATED_AT });
+
+    const list = await backend.listPlayers();
+    expect(list).toEqual({
+      ok: true,
+      value: [{ id: uuid(101), name: 'Alice', createdAt: CREATED_AT }],
+    });
+  });
+
+  it.each([
+    ['a whitespace-only name', { id: uuid(101), name: '   ', createdAt: CREATED_AT }],
+    ['an invalid id', { id: 'alice', name: 'Alice', createdAt: CREATED_AT }],
+    ['a name over 100 characters', { id: uuid(101), name: 'a'.repeat(101), createdAt: CREATED_AT }],
+  ])('returns INVALID_PLAYER for %s and stores nothing', async (_, player) => {
+    const { backend } = freshBackend();
+
+    const saved = await backend.savePlayer(player);
+    expect(saved.ok).toBe(false);
+    if (!saved.ok) {
+      expect(saved.error.code).toBe('INVALID_PLAYER');
+      expect(saved.error.cause?.code).toBe('INVALID_SCHEMA');
+    }
+    expect(await backend.listPlayers()).toEqual({ ok: true, value: [] });
+  });
+
+  it('returns INVALID_PLAYER from listPlayers when a stored row was corrupted', async () => {
+    const { dbName, backend } = freshBackend();
+    await backend.savePlayer({ id: uuid(101), name: 'Alice', createdAt: CREATED_AT });
+    await backend.savePlayer({ id: uuid(102), name: 'Bruno', createdAt: CREATED_AT });
+
+    const raw = new ModoTorneoDb(dbName);
+    await raw.players.update(uuid(102), { name: '' });
+    raw.close();
+
+    const list = await backend.listPlayers();
+    expect(list.ok).toBe(false);
+    if (!list.ok) {
+      expect(list.error.code).toBe('INVALID_PLAYER');
+      expect(list.error.cause?.code).toBe('INVALID_SCHEMA');
+    }
+  });
+
   it('orders players with the same name by id', async () => {
     const { backend } = freshBackend();
     await backend.savePlayer({ id: uuid(102), name: 'Alex', createdAt: CREATED_AT });
