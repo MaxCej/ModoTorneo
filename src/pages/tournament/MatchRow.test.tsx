@@ -94,3 +94,65 @@ describe('MatchRow', () => {
     expect(row.getByText('No result')).toBeInTheDocument();
   });
 });
+
+describe('MatchRow custom result', () => {
+  function enter(row: ReturnType<typeof within>, winsA: string, winsB: string, draws: string) {
+    fireEvent.click(row.getByRole('button', { name: 'Custom' }));
+    fireEvent.change(row.getByRole('textbox', { name: 'Wins A' }), { target: { value: winsA } });
+    fireEvent.change(row.getByRole('textbox', { name: 'Wins B' }), { target: { value: winsB } });
+    fireEvent.change(row.getByRole('textbox', { name: 'Draws' }), { target: { value: draws } });
+    fireEvent.click(row.getByRole('button', { name: 'Save' }));
+  }
+
+  it('reports a valid custom result and closes', () => {
+    const { onReport, row } = renderRow(open());
+    enter(row, '1', '0', '0');
+    expect(onReport).toHaveBeenCalledWith({ winsA: 1, winsB: 0, draws: 0, kind: 'played' });
+    expect(row.queryByRole('textbox', { name: 'Wins A' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['3-0-0, more than 2 wins', '3', '0', '0'],
+    ['2-2-0, more than 3 games', '2', '2', '0'],
+    ['0-0-0, no game', '0', '0', '0'],
+    ['an empty count', '', '1', '0'],
+  ])('rejects %s and reports nothing', (_, a, b, d) => {
+    const { onReport, row } = renderRow(open());
+    enter(row, a, b, d);
+    expect(onReport).not.toHaveBeenCalled();
+    expect(
+      row.getByText('Enter a best-of-three result: at most 2 wins each and 3 games in total.'),
+    ).toBeInTheDocument();
+  });
+
+  it('clears the error when a count changes', () => {
+    const { row } = renderRow(open());
+    enter(row, '3', '0', '0');
+    fireEvent.change(row.getByRole('textbox', { name: 'Wins A' }), { target: { value: '2' } });
+    expect(row.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('closes without reporting on Cancel', () => {
+    const { onReport, row } = renderRow(open());
+    fireEvent.click(row.getByRole('button', { name: 'Custom' }));
+    fireEvent.click(row.getByRole('button', { name: 'Cancel' }));
+    expect(onReport).not.toHaveBeenCalled();
+    expect(row.queryByRole('textbox', { name: 'Wins A' })).not.toBeInTheDocument();
+  });
+
+  it('shows a custom result that matches no preset as text, with no preset highlighted', () => {
+    const { row } = renderRow(open({ winsA: 1, winsB: 0, draws: 1, kind: 'played' }));
+    expect(row.getByText('1-0-1')).toBeInTheDocument();
+    const pressed = row
+      .getAllByRole('button')
+      .filter((button) => button.getAttribute('aria-pressed') === 'true');
+    expect(pressed).toEqual([]);
+  });
+
+  it('starts from the current played result', () => {
+    const { row } = renderRow(open({ winsA: 1, winsB: 0, draws: 1, kind: 'played' }));
+    fireEvent.click(row.getByRole('button', { name: 'Custom' }));
+    expect(row.getByRole('textbox', { name: 'Wins A' })).toHaveValue('1');
+    expect(row.getByRole('textbox', { name: 'Draws' })).toHaveValue('1');
+  });
+});

@@ -106,6 +106,8 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
 - **Match points (MTR):** win 3, draw or intentional draw 1, loss 0. A bye is a 2-0 win (3
   points). An unplayed match is a loss for both players. Top cut rounds do not count
   (`src/domain/points.ts`).
+- **Match length:** swiss matches are best of three. A custom result allows at most 2 wins
+  per player and 3 games in total (`fitsBestOf` in `src/domain/schemas/matchResult.ts`).
 - **Swiss pairing** (`src/domain/pairing.ts`):
   - Round 1 is random. Later rounds pair players with the same match points, in random
     order, and the odd player of a group floats down to the next one.

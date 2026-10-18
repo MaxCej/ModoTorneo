@@ -133,7 +133,14 @@
         "draw111": "1-1-1",
         "intentionalDraw": "ID",
         "unplayed": "Unplayed"
-      }
+      },
+      "custom": "Custom",
+      "customWinsA": "Wins A",
+      "customWinsB": "Wins B",
+      "customDraws": "Draws",
+      "customSave": "Save",
+      "customCancel": "Cancel",
+      "customInvalid": "Enter a best-of-three result: at most 2 wins each and 3 games in total."
     }
   },
   "notFound": {

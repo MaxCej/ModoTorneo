@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MatchResultSchema, matchOutcome, type MatchResult } from './matchResult';
+import { MatchResultSchema, fitsBestOf, matchOutcome, type MatchResult } from './matchResult';
 
 const played = (winsA: number, winsB: number, draws = 0): MatchResult => ({
   winsA,
@@ -61,5 +61,58 @@ describe('matchOutcome', () => {
 
   it("returns 'doubleLoss' for an unplayed match", () => {
     expect(matchOutcome({ winsA: 0, winsB: 0, draws: 0, kind: 'unplayed' })).toBe('doubleLoss');
+  });
+});
+
+describe('fitsBestOf', () => {
+  const played = (winsA: number, winsB: number, draws = 0): MatchResult => ({
+    winsA,
+    winsB,
+    draws,
+    kind: 'played',
+  });
+
+  it.each([
+    [2, 0, 0],
+    [2, 1, 0],
+    [1, 1, 1],
+    [1, 0, 0],
+    [0, 0, 1],
+    [1, 1, 0],
+    [0, 2, 0],
+  ])('accepts %i-%i-%i in a best of 3', (a, b, d) => {
+    expect(fitsBestOf(played(a, b, d), 3)).toBe(true);
+  });
+
+  it.each([
+    [3, 0, 0],
+    [0, 3, 0],
+    [2, 2, 0],
+    [2, 1, 1],
+    [1, 1, 2],
+  ])('rejects %i-%i-%i in a best of 3', (a, b, d) => {
+    expect(fitsBestOf(played(a, b, d), 3)).toBe(false);
+  });
+
+  it.each([
+    [3, 0, 0],
+    [3, 2, 0],
+    [2, 2, 1],
+    [3, 1, 1],
+  ])('accepts %i-%i-%i in a best of 5', (a, b, d) => {
+    expect(fitsBestOf(played(a, b, d), 5)).toBe(true);
+  });
+
+  it.each([
+    [3, 3, 0],
+    [3, 2, 1],
+  ])('rejects %i-%i-%i in a best of 5', (a, b, d) => {
+    expect(fitsBestOf(played(a, b, d), 5)).toBe(false);
+  });
+
+  it('always accepts intentional draws and unplayed matches', () => {
+    const zero = { winsA: 0, winsB: 0, draws: 0 };
+    expect(fitsBestOf({ ...zero, kind: 'intentionalDraw' }, 3)).toBe(true);
+    expect(fitsBestOf({ ...zero, kind: 'unplayed' }, 3)).toBe(true);
   });
 });
