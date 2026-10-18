@@ -23,6 +23,28 @@
       "players": "Players"
     }
   },
+  "newTournament": {
+    "title": "New tournament",
+    "name": "Name",
+    "date": "Date",
+    "location": "Location",
+    "format": "Format",
+    "formatPlaceholder": "Pick a format",
+    "swissRounds": "Swiss rounds",
+    "roundsAuto": "Auto",
+    "roundsCustom": "Custom",
+    "roundsCount": "Number of swiss rounds",
+    "create": "Create",
+    "cancel": "Cancel",
+    "createFailed": "Could not create the tournament ({{code}}): {{message}}",
+    "errors": {
+      "nameRequired": "Name is required",
+      "tooLong": "At most 100 characters",
+      "dateRequired": "Date is required",
+      "formatRequired": "Format is required",
+      "rounds": "Enter a whole number from 1 to 20"
+    }
+  },
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"
