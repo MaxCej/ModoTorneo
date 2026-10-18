@@ -1,7 +1,8 @@
-import { SegmentedControl, Stack } from '@mantine/core';
+import { Alert, List, SegmentedControl, Stack } from '@mantine/core';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  pairingWarnings,
   playerRecords,
   type Command,
   type DomainError,
@@ -11,6 +12,7 @@ import {
 } from '../../domain';
 import { ByPlayerList } from './ByPlayerList';
 import { MatchRow } from './MatchRow';
+import { SwapPlayers } from './SwapPlayers';
 
 type Props = {
   state: TournamentState;
@@ -40,8 +42,32 @@ export function RoundPanel({ state, round, onDispatch }: Props) {
         });
   };
 
+  const name = (playerId: string) => state.players[playerId]?.playerName ?? playerId;
+  const tableOf = (matchId: string) => round.matches.find((m) => m.matchId === matchId)?.table;
+  // Warnings and swaps only matter while the round can still change.
+  const editable = !readOnly && round.stage === 'swiss';
+  const warnings = editable ? pairingWarnings(state, round.number) : [];
+
   return (
     <Stack>
+      {warnings.length > 0 && (
+        <Alert color="yellow" title={t('tournament.rounds.warnings.title')}>
+          <List size="sm">
+            {warnings.map((warning) => (
+              <List.Item key={`${warning.kind}-${warning.matchId}`}>
+                {warning.kind === 'rematch'
+                  ? t('tournament.rounds.warnings.rematch', {
+                      table: tableOf(warning.matchId),
+                      nameA: name(warning.playerA),
+                      nameB: name(warning.playerB),
+                    })
+                  : t('tournament.rounds.warnings.repeatBye', { name: name(warning.playerId) })}
+              </List.Item>
+            ))}
+          </List>
+        </Alert>
+      )}
+      {editable && <SwapPlayers state={state} round={round} onDispatch={onDispatch} />}
       <SegmentedControl
         w="fit-content"
         aria-label={t('tournament.rounds.viewLabel')}

@@ -159,6 +159,18 @@
         "table": "Table",
         "opponent": "Opponent",
         "result": "Result"
+      },
+      "warnings": {
+        "title": "Check these pairings",
+        "rematch": "Rematch at table {{table}}: {{nameA}} vs {{nameB}}.",
+        "repeatBye": "{{name}} already had a bye."
+      },
+      "swap": {
+        "open": "Swap players",
+        "first": "First player",
+        "second": "Second player",
+        "confirm": "Swap",
+        "cancel": "Cancel"
       }
     }
   },
