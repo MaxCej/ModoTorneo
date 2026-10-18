@@ -1,7 +1,21 @@
 {
-  "app": { "title": "ModoTorneo" },
-  "home": { "dataLink": "Data" },
-  "notFound": { "title": "Page not found", "backHome": "Back to home" },
+  "app": {
+    "title": "ModoTorneo",
+    "loading": "Loading…"
+  },
+  "nav": {
+    "tournaments": "Tournaments",
+    "data": "Data",
+    "toggle": "Toggle navigation",
+    "label": "Main navigation"
+  },
+  "home": {
+    "dataLink": "Data"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "backHome": "Back to home"
+  },
   "data": {
     "title": "Data",
     "exportAll": "Export all",
@@ -59,22 +73,22 @@
       "status": "Status",
       "events": "Events",
       "actions": "Actions"
-    },
-    "formats": {
-      "standard": "Standard",
-      "pioneer": "Pioneer",
-      "modern": "Modern",
-      "legacy": "Legacy",
-      "vintage": "Vintage",
-      "pauper": "Pauper",
-      "commander": "Commander",
-      "limited": "Limited"
-    },
-    "statuses": {
-      "setup": "Setup",
-      "running": "Running",
-      "topCut": "Top cut",
-      "finished": "Finished"
     }
+  },
+  "formats": {
+    "standard": "Standard",
+    "pioneer": "Pioneer",
+    "modern": "Modern",
+    "legacy": "Legacy",
+    "vintage": "Vintage",
+    "pauper": "Pauper",
+    "commander": "Commander",
+    "limited": "Limited"
+  },
+  "statuses": {
+    "setup": "Setup",
+    "running": "Running",
+    "topCut": "Top cut",
+    "finished": "Finished"
   }
 }

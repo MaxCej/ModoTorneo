@@ -1,10 +1,23 @@
-import { createHashRouter } from 'react-router';
-import { DataPage } from './pages/DataPage';
-import { HomePage } from './pages/HomePage';
-import { NotFoundPage } from './pages/NotFoundPage';
+import { lazy } from 'react';
+import { createHashRouter, type RouteObject } from 'react-router';
+import { AppLayout } from './app/AppLayout';
 
-export const router = createHashRouter([
-  { path: '/', element: <HomePage /> },
-  { path: '/data', element: <DataPage /> },
-  { path: '*', element: <NotFoundPage /> },
-]);
+// One chunk per page, so the main bundle stays small.
+const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })));
+const DataPage = lazy(() => import('./pages/DataPage').then((m) => ({ default: m.DataPage })));
+const NotFoundPage = lazy(() =>
+  import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
+);
+
+export const routes: RouteObject[] = [
+  {
+    element: <AppLayout />,
+    children: [
+      { path: '/', element: <HomePage /> },
+      { path: '/data', element: <DataPage /> },
+      { path: '*', element: <NotFoundPage /> },
+    ],
+  },
+];
+
+export const router = createHashRouter(routes);
