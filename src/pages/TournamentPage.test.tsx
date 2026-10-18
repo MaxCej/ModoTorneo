@@ -254,6 +254,43 @@ describe('TournamentPage', () => {
     );
   });
 
+  it('shows a Standings tab after Players, with the empty state before round 1 closes', async () => {
+    await backend.saveTournament(runningDoc(4), null);
+    renderPage();
+    await screen.findByRole('tab', { name: 'Round 1' });
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Players',
+      'Standings',
+      'Round 1',
+    ]);
+    // The default tab is still the open round.
+    expect(screen.getByRole('tab', { name: 'Round 1' })).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Standings' }));
+    expect(screen.getByText('Standings appear when round 1 is closed.')).toBeInTheDocument();
+  });
+
+  it('shows the standings table once round 1 is closed', async () => {
+    const [a, b, c, d] = playerIds(4);
+    const log = swissHistory(playerIds(4), [
+      [
+        [a, b],
+        [c, d],
+      ],
+    ]);
+    await backend.saveTournament({ schemaVersion: 1, id: TOURNAMENT_ID, events: log.events }, null);
+    renderPage();
+    // With no open round, the default tab is the last round.
+    expect(await screen.findByRole('tab', { name: 'Round 1' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Standings' }));
+    const table = screen.getByRole('table', { name: 'Standings after round 1' });
+    expect(within(table).getAllByRole('row')).toHaveLength(5);
+  });
+
   it('closes the last round, finishes, and leaves every tab read-only', async () => {
     const [a, b, c, d] = playerIds(4);
     const log = swissHistory(playerIds(4), [], { ...CREATED_PAYLOAD, swissRounds: 1 }).add(

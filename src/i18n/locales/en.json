@@ -172,6 +172,23 @@
         "confirm": "Swap",
         "cancel": "Cancel"
       }
+    },
+    "standings": {
+      "tab": "Standings",
+      "empty": "Standings appear when round 1 is closed.",
+      "afterRound": "After round",
+      "roundOption": "Round {{round}}",
+      "tableLabel": "Standings after round {{round}}",
+      "rank": "Rank",
+      "player": "Player",
+      "matchPoints": "MP",
+      "record": "W-L-D",
+      "omw": "OMW%",
+      "gw": "GW%",
+      "ogw": "OGW%",
+      "recordValue": "{{wins}}-{{losses}}-{{draws}}",
+      "percent": "{{value}}%",
+      "dropped": "Dropped"
     }
   },
   "notFound": {
