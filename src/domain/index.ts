@@ -23,6 +23,7 @@ export {
   type TournamentState,
   type TournamentStatus,
 } from './state';
+export { editableDetails, type DetailField } from './validate';
 export {
   SWISS_ROUNDS_TABLE,
   recommendedSwissRounds,

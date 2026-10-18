@@ -134,7 +134,7 @@ export function validate(
   }
 }
 
-type DetailField = keyof TournamentDetailsChangedPayload;
+export type DetailField = keyof TournamentDetailsChangedPayload;
 
 /** Format is fixed once play starts; swiss rounds are fixed once swiss ends. */
 const EDITABLE_DETAILS: Record<TournamentState['status'], readonly DetailField[]> = {
@@ -143,6 +143,11 @@ const EDITABLE_DETAILS: Record<TournamentState['status'], readonly DetailField[]
   topCut: ['name', 'date', 'location'],
   finished: ['name', 'date', 'location'],
 };
+
+/** The `TournamentDetailsChanged` fields allowed in `status`. Shared with the UI. */
+export function editableDetails(status: TournamentState['status']): readonly DetailField[] {
+  return EDITABLE_DETAILS[status];
+}
 
 function validateDetailsChanged(
   state: TournamentState,
