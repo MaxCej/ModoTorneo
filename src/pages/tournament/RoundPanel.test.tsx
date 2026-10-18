@@ -122,3 +122,73 @@ describe('RoundPanel', () => {
     expect(table(2).getByText('0-2')).toBeInTheDocument();
   });
 });
+
+describe('RoundPanel by player', () => {
+  /** 5 players named so name order differs from table order; round 1 open, E on the bye. */
+  const named = () => {
+    const ids = playerIds(5);
+    const log = swissHistory([], []);
+    const names = ['Diego', 'alice', 'Carmen', 'Bruno', 'Elena'];
+    ids.forEach((playerId, i) => log.add('PlayerRegistered', { playerId, playerName: names[i] }));
+    return log
+      .add('RoundPaired', {
+        round: 1,
+        stage: 'swiss',
+        pairings: [
+          pairing(1, 1, ids[0], ids[1]),
+          pairing(2, 2, ids[2], ids[3]),
+          pairing(3, 3, ids[4], null),
+        ],
+      })
+      .add('ResultReported', {
+        matchId: matchId(1),
+        result: { winsA: 2, winsB: 1, draws: 0, kind: 'played' },
+      });
+  };
+
+  const showByPlayer = () => fireEvent.click(screen.getByRole('radio', { name: 'By player' }));
+  const rows = () =>
+    within(screen.getByRole('table', { name: 'Round 1 by player' }))
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) =>
+        within(row)
+          .getAllByRole('cell')
+          .map((cell) => cell.textContent),
+      );
+
+  it('defaults to the by-table view', () => {
+    renderRound(named(), 1);
+    expect(screen.getByRole('radio', { name: 'By table' })).toBeChecked();
+    expect(screen.getByRole('group', { name: 'Table 1' })).toBeInTheDocument();
+  });
+
+  it('lists every player in name order with table, opponent and result from their side', () => {
+    renderRound(named(), 1);
+    showByPlayer();
+
+    expect(rows()).toEqual([
+      ['alice', '1', 'Diego', '1-2'],
+      ['Bruno', '2', 'Carmen', 'No result'],
+      ['Carmen', '2', 'Bruno', 'No result'],
+      ['Diego', '1', 'alice', '2-1'],
+      ['Elena', '3', 'Bye', '2-0'],
+    ]);
+    expect(screen.queryByRole('group', { name: 'Table 1' })).not.toBeInTheDocument();
+  });
+
+  it('is read-only', () => {
+    renderRound(named(), 1);
+    showByPlayer();
+    expect(
+      within(screen.getByRole('table', { name: 'Round 1 by player' })).queryByRole('button'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('switches back to the by-table view', () => {
+    renderRound(named(), 1);
+    showByPlayer();
+    fireEvent.click(screen.getByRole('radio', { name: 'By table' }));
+    expect(screen.getByRole('group', { name: 'Table 1' })).toBeInTheDocument();
+  });
+});

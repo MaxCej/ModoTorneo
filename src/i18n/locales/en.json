@@ -149,6 +149,16 @@
         "message": "Finish {{name}}? Results can no longer be entered or changed.",
         "cancel": "Cancel",
         "confirm": "Finish"
+      },
+      "viewLabel": "View",
+      "byTable": "By table",
+      "byPlayer": "By player",
+      "byPlayerLabel": "Round {{round}} by player",
+      "columns": {
+        "player": "Player",
+        "table": "Table",
+        "opponent": "Opponent",
+        "result": "Result"
       }
     }
   },
