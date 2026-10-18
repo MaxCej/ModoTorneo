@@ -1,9 +1,11 @@
 import { MantineProvider } from '@mantine/core';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { reduce, type MatchResult } from '../../domain';
 import {
   TOURNAMENT_ID,
+  matchId,
+  pairing,
   playerIds,
   registeredLog,
   swissHistory,
@@ -73,5 +75,70 @@ describe('StandingsPanel', () => {
     expect(within(row).getByText('Dropped')).toBeInTheDocument();
     expect(within(row).getAllByRole('cell')[0]).toHaveTextContent('3');
     expect(within(table).getAllByText('Dropped')).toHaveLength(1);
+  });
+
+  describe('After round picker', () => {
+    /** Round 1: A beat B, C beat D. Round 2: A beat C, D beat B. Both closed. */
+    const round2Closed = () =>
+      swissHistory(playerIds(4), [
+        [
+          [A, B],
+          [C, D, WIN_20],
+        ],
+        [
+          [A, C],
+          [D, B],
+        ],
+      ]);
+    const picker = () => screen.getByRole('combobox', { name: 'After round' });
+
+    it('defaults to the last closed round', () => {
+      renderPanel(round2Closed());
+      expect(picker()).toHaveValue('Round 2');
+      const table = screen.getByRole('table', { name: 'Standings after round 2' });
+      expect(bodyRows(table).map((row) => [row[1], row[2], row[3]])).toEqual([
+        ['Player 1', '6', '2-0-0'],
+        ['Player 3', '3', '1-1-0'],
+        ['Player 4', '3', '1-1-0'],
+        ['Player 2', '0', '0-2-0'],
+      ]);
+    });
+
+    it("shows an earlier round's standings when picked", () => {
+      renderPanel(round2Closed());
+      fireEvent.click(picker());
+      fireEvent.click(screen.getByRole('option', { name: 'Round 1' }));
+
+      expect(picker()).toHaveValue('Round 1');
+      const table = screen.getByRole('table', { name: 'Standings after round 1' });
+      expect(bodyRows(table).map((row) => [row[1], row[2], row[3]])).toEqual([
+        ['Player 3', '3', '1-0-0'],
+        ['Player 1', '3', '1-0-0'],
+        ['Player 2', '0', '0-1-0'],
+        ['Player 4', '0', '0-1-0'],
+      ]);
+    });
+
+    it('does not offer the open round, and ignores its reported results', () => {
+      const log = round1Closed()
+        .add('RoundPaired', {
+          round: 2,
+          stage: 'swiss',
+          pairings: [pairing(3, 1, A, C), pairing(4, 2, B, D)],
+        })
+        .add('ResultReported', { matchId: matchId(3), result: WIN_20 });
+      renderPanel(log);
+
+      expect(picker()).toHaveValue('Round 1');
+      fireEvent.click(picker());
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Round 1']);
+      const table = screen.getByRole('table', { name: 'Standings after round 1' });
+      expect(bodyRows(table).map((row) => [row[1], row[2]])).toEqual([
+        ['Player 3', '3'],
+        ['Player 1', '3'],
+        ['Player 2', '0'],
+        ['Player 4', '0'],
+      ]);
+    });
   });
 });
