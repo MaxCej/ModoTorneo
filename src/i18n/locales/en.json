@@ -1,7 +1,122 @@
 {
-  "app": { "title": "ModoTorneo" },
-  "home": { "dataLink": "Data" },
-  "notFound": { "title": "Page not found", "backHome": "Back to home" },
+  "app": {
+    "title": "ModoTorneo",
+    "loading": "Loading…"
+  },
+  "nav": {
+    "tournaments": "Tournaments",
+    "data": "Data",
+    "toggle": "Toggle navigation",
+    "label": "Main navigation"
+  },
+  "home": {
+    "title": "Tournaments",
+    "newTournament": "New tournament",
+    "empty": "No tournaments yet. Create one to get started.",
+    "unavailable": "Local storage is unavailable in this browser.",
+    "loadFailed": "Could not load tournaments ({{code}}): {{message}}",
+    "columns": {
+      "name": "Name",
+      "date": "Date",
+      "format": "Format",
+      "status": "Status",
+      "players": "Players"
+    }
+  },
+  "newTournament": {
+    "title": "New tournament",
+    "create": "Create",
+    "cancel": "Cancel",
+    "createFailed": "Could not create the tournament ({{code}}): {{message}}"
+  },
+  "tournament": {
+    "form": {
+      "name": "Name",
+      "date": "Date",
+      "location": "Location",
+      "format": "Format",
+      "formatPlaceholder": "Pick a format",
+      "swissRounds": "Swiss rounds",
+      "roundsAuto": "Auto",
+      "roundsCustom": "Custom",
+      "roundsCount": "Number of swiss rounds",
+      "errors": {
+        "nameRequired": "Name is required",
+        "tooLong": "At most 100 characters",
+        "dateRequired": "Date is required",
+        "formatRequired": "Format is required",
+        "rounds": "Enter a whole number from 1 to 20"
+      }
+    },
+    "notFound": "Tournament not found.",
+    "backToList": "Back to tournaments",
+    "loadFailed": "Could not load the tournament ({{code}}): {{message}}",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "commandError": "{{code}}: {{message}}",
+    "closeNotice": "Close",
+    "notices": {
+      "conflict": "This tournament was changed in another tab. Your last change was not saved. The latest version has been loaded.",
+      "notFound": "This tournament no longer exists. It may have been deleted in another tab.",
+      "saveFailed": "Could not save ({{code}}): {{message}}. The last saved version has been loaded."
+    },
+    "details": {
+      "title": "Details",
+      "name": "Name",
+      "date": "Date",
+      "location": "Location",
+      "noLocation": "—",
+      "format": "Format",
+      "status": "Status",
+      "swissRounds": "Swiss rounds",
+      "roundsAuto": "Auto ({{rounds}} for {{players}} players)",
+      "roundsAutoTooFew": "Auto (register at least 2 players)",
+      "edit": "Edit details",
+      "save": "Save",
+      "cancel": "Cancel",
+      "recommended": "Recommended rounds"
+    },
+    "roundsTable": {
+      "players": "Players",
+      "rounds": "Swiss rounds",
+      "roundsTop8": "With Top 8",
+      "range": "{{min}}–{{max}}",
+      "rangeOpen": "{{min}}+",
+      "none": "—"
+    },
+    "registration": {
+      "registry": "Players",
+      "registryFailed": "Could not load players ({{code}}): {{message}}",
+      "newPlayer": "New player",
+      "addFailed": "Could not add the player ({{code}}): {{message}}",
+      "filter": "Filter",
+      "noMatch": "No player matches the filter.",
+      "registryEmpty": "No other players in the registry.",
+      "add": "Add",
+      "addLabel": "Add {{name}}",
+      "registered": "Registered ({{count}})",
+      "registeredEmpty": "No players registered yet.",
+      "addGuest": "Add guest",
+      "duplicate": "A player named {{name}} already exists.",
+      "addAnyway": "Add anyway",
+      "guest": "Guest",
+      "dropped": "Dropped",
+      "remove": "Remove",
+      "removeLabel": "Remove {{name}}",
+      "drop": "Drop",
+      "dropLabel": "Drop {{name}}",
+      "dropModal": {
+        "title": "Drop player",
+        "message": "Drop {{name}}? They will not be paired in later rounds.",
+        "cancel": "Cancel",
+        "confirm": "Drop"
+      }
+    }
+  },
+  "notFound": {
+    "title": "Page not found",
+    "backHome": "Back to home"
+  },
   "data": {
     "title": "Data",
     "exportAll": "Export all",
@@ -59,22 +174,22 @@
       "status": "Status",
       "events": "Events",
       "actions": "Actions"
-    },
-    "formats": {
-      "standard": "Standard",
-      "pioneer": "Pioneer",
-      "modern": "Modern",
-      "legacy": "Legacy",
-      "vintage": "Vintage",
-      "pauper": "Pauper",
-      "commander": "Commander",
-      "limited": "Limited"
-    },
-    "statuses": {
-      "setup": "Setup",
-      "running": "Running",
-      "topCut": "Top cut",
-      "finished": "Finished"
     }
+  },
+  "formats": {
+    "standard": "Standard",
+    "pioneer": "Pioneer",
+    "modern": "Modern",
+    "legacy": "Legacy",
+    "vintage": "Vintage",
+    "pauper": "Pauper",
+    "commander": "Commander",
+    "limited": "Limited"
+  },
+  "statuses": {
+    "setup": "Setup",
+    "running": "Running",
+    "topCut": "Top cut",
+    "finished": "Finished"
   }
 }

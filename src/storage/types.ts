@@ -21,6 +21,7 @@ export type TournamentSummary = {
   format: Format;
   status: TournamentStatus;
   eventCount: number; // doc.events.length, voided events included
+  playerCount: number; // every registered player, dropped included (Object.keys(state.players))
   updatedAt: IsoDateTime; // time of the last save
   revision: Revision;
 };
@@ -35,6 +36,7 @@ export type StorageErrorCode =
   | 'NOT_FOUND' // no tournament with that id
   | 'CONFLICT' // expectedRevision does not match the stored one
   | 'INVALID_DOCUMENT' // parseTournamentDocument failed; `cause` holds the DomainError
+  | 'INVALID_PLAYER' // PlayerSchema failed on save or load; `cause` holds the DomainError
   | 'UNAVAILABLE'; // IndexedDB cannot be opened or a transaction failed
 
 export type StorageError = { code: StorageErrorCode; message: string; cause?: DomainError };

@@ -1,9 +1,9 @@
 import { CorruptLogError, domainError } from './errors';
 import type { Uuid } from './schemas/common';
-import type { TournamentEvent } from './schemas/events';
+import type { TournamentDetailsChangedPayload, TournamentEvent } from './schemas/events';
 import { IMPLICIT_BYE_RESULT } from './schemas/matchResult';
 import { initialState, type Round, type TournamentState } from './state';
-import { validate } from './validate';
+import { resolvedSwissRounds, validate } from './validate';
 
 /**
  * Applies one event that `validate` already accepted. Never mutates `state`.
@@ -29,11 +29,12 @@ export function apply(
       throw new Error('apply: TournamentCreated must be the first event');
 
     case 'PlayerRegistered': {
-      const { playerId, playerName, deckId } = event.payload;
+      const { playerId, playerName, deckId, guest } = event.payload;
       const entry = {
         playerId,
         playerName,
         ...(deckId === undefined ? {} : { deckId }),
+        guest: guest ?? false,
         dropped: false,
         registeredAtRound: state.rounds.length,
       };
@@ -46,6 +47,21 @@ export function apply(
       return { ...next, players: { ...state.players, [playerId]: entry } };
     }
 
+    case 'PlayerUnregistered': {
+      // Removes the entry, so the same playerId can register again.
+      const players = { ...state.players };
+      delete players[event.payload.playerId];
+      return { ...next, players };
+    }
+
+    case 'TournamentDetailsChanged': {
+      // Only the fields present in the payload change.
+      const details = Object.fromEntries(
+        Object.entries(event.payload).filter(([, value]) => value !== undefined),
+      ) as Partial<TournamentDetailsChangedPayload>;
+      return { ...next, ...details };
+    }
+
     case 'RoundPaired': {
       const { round, stage, pairings } = event.payload;
       const matches = pairings.map((pairing) => ({
@@ -53,9 +69,12 @@ export function apply(
         result: pairing.playerB === null ? IMPLICIT_BYE_RESULT : null,
       }));
       const status = stage === 'swiss' && state.status === 'setup' ? 'running' : state.status;
+      // The first swiss round fixes an auto (null) round count from the active players.
+      const swissRounds = stage === 'swiss' ? resolvedSwissRounds(state) : state.swissRounds;
       return {
         ...next,
         status,
+        swissRounds,
         rounds: [...state.rounds, { number: round, stage, closed: false, matches }],
       };
     }

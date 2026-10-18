@@ -199,6 +199,121 @@ describe('validate: PlayerDropped', () => {
   });
 });
 
+describe('validate: PlayerUnregistered', () => {
+  it('accepts a registered player in setup', () => {
+    expect(
+      validate(stateWith(registeredP1), event(3, 'PlayerUnregistered', { playerId: P1 })),
+    ).toBeNull();
+  });
+
+  it('accepts a dropped player in setup', () => {
+    expect(
+      validate(stateWith(droppedP1), event(4, 'PlayerUnregistered', { playerId: P1 })),
+    ).toBeNull();
+  });
+
+  it.each(['running', 'topCut', 'finished'] as const)('rejects it while %s', (status) => {
+    const state = { ...stateWith(registeredP1), status };
+    expect(validate(state, event(3, 'PlayerUnregistered', { playerId: P1 }))).toMatchObject({
+      code: 'WRONG_STATUS',
+      seq: 3,
+    });
+  });
+
+  it('returns WRONG_STATUS once round 1 is paired', () => {
+    expect(
+      validateNext(reduceLog(round1Open()), 'PlayerUnregistered', { playerId: P1 }),
+    ).toMatchObject({ code: 'WRONG_STATUS' });
+  });
+
+  it('rejects an unknown player', () => {
+    expect(
+      validate(stateWith(registeredP1), event(3, 'PlayerUnregistered', { playerId: P2 })),
+    ).toMatchObject({ code: 'UNKNOWN_PLAYER', seq: 3 });
+  });
+
+  it('rejects a player who was already unregistered', () => {
+    const state = stateWith((log) => registeredP1(log).add('PlayerUnregistered', { playerId: P1 }));
+    expect(validate(state, event(4, 'PlayerUnregistered', { playerId: P1 }))).toMatchObject({
+      code: 'UNKNOWN_PLAYER',
+    });
+  });
+});
+
+describe('validate: TournamentDetailsChanged', () => {
+  type Details = PayloadOf<'TournamentDetailsChanged'>;
+
+  /** One state per status. `running` has 1 of 2 swiss rounds paired and closed. */
+  const states = {
+    setup: () => reduceLog(registeredLog(4, TWO_ROUNDS)),
+    running: () => reduceLog(swissRound1Done()),
+    topCut: () => reduceLog(swissDone().add('TopCutStarted', { size: 4 })),
+    finished: () => reduceLog(swissDone().add('TournamentFinished', {})),
+  };
+
+  const ALLOWED: Record<keyof typeof states, Details[]> = {
+    setup: [
+      { name: 'Renamed' },
+      { date: '2026-12-01' },
+      { location: 'Elsewhere' },
+      { format: 'legacy' },
+      { swissRounds: 5 },
+      { swissRounds: null },
+    ],
+    running: [
+      { name: 'Renamed' },
+      { date: '2026-12-01' },
+      { location: 'Elsewhere' },
+      { swissRounds: 3 },
+    ],
+    topCut: [{ name: 'Renamed' }, { date: '2026-12-01' }, { location: 'Elsewhere' }],
+    finished: [{ name: 'Renamed' }, { date: '2026-12-01' }, { location: 'Elsewhere' }],
+  };
+
+  const BLOCKED: Record<keyof typeof states, Details[]> = {
+    setup: [],
+    running: [{ format: 'legacy' }, { name: 'Renamed', format: 'legacy' }],
+    topCut: [{ format: 'legacy' }, { swissRounds: 3 }],
+    finished: [{ format: 'legacy' }, { swissRounds: 3 }],
+  };
+
+  describe.each(Object.keys(states) as (keyof typeof states)[])('while %s', (status) => {
+    it('starts from the expected status', () => {
+      expect(states[status]().status).toBe(status);
+    });
+
+    it.each(ALLOWED[status])('accepts %j', (payload) => {
+      expect(validateNext(states[status](), 'TournamentDetailsChanged', payload)).toBeNull();
+    });
+
+    if (BLOCKED[status].length > 0) {
+      it.each(BLOCKED[status])('rejects %j with WRONG_STATUS', (payload) => {
+        expect(validateNext(states[status](), 'TournamentDetailsChanged', payload)).toMatchObject({
+          code: 'WRONG_STATUS',
+        });
+      });
+    }
+  });
+
+  it('accepts swissRounds equal to the swiss rounds already paired', () => {
+    expect(
+      validateNext(reduceLog(swissDone()), 'TournamentDetailsChanged', { swissRounds: 2 }),
+    ).toBeNull();
+  });
+
+  it('rejects swissRounds below the swiss rounds already paired', () => {
+    expect(
+      validateNext(reduceLog(swissDone()), 'TournamentDetailsChanged', { swissRounds: 1 }),
+    ).toMatchObject({ code: 'INVALID_DETAILS' });
+  });
+
+  it('rejects swissRounds null (auto) while running', () => {
+    expect(
+      validateNext(reduceLog(swissRound1Done()), 'TournamentDetailsChanged', { swissRounds: null }),
+    ).toMatchObject({ code: 'INVALID_DETAILS' });
+  });
+});
+
 describe('validate: RoundPaired (swiss)', () => {
   const fourPlayers = () => reduceLog(registeredLog(4));
 
@@ -391,7 +506,7 @@ describe('validate: TopCutStarted', () => {
     const ids = Array.from({ length: size }, (_, i) => uuid(200 + i));
     const players = ids.map((id) => [
       id,
-      { playerId: id, playerName: id, dropped: false, registeredAtRound: 0 },
+      { playerId: id, playerName: id, guest: false, dropped: false, registeredAtRound: 0 },
     ]);
     const crowded = { ...reduceLog(swissDone()), players: Object.fromEntries(players) };
     expect(validateNext(crowded, 'TopCutStarted', { size })).toBeNull();

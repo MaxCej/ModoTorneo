@@ -1,3 +1,4 @@
+import type { TournamentDocument } from '../schemas/document';
 import type {
   EventPayload,
   Pairing,
@@ -90,4 +91,24 @@ export function addClosedRound(
     }
   }
   return log.add('RoundClosed', { round });
+}
+
+/**
+ * A `running` document: the first `count` players of `PLAYERS` registered and swiss round 1
+ * paired in order (matches 1, 2…, still open). An odd count gives the last player a bye.
+ */
+export function runningDoc(
+  count = 4,
+  created: TournamentCreatedPayload = CREATED_PAYLOAD,
+): TournamentDocument {
+  const ids = PLAYERS.slice(0, count);
+  const pairings = Array.from({ length: Math.ceil(count / 2) }, (_, i) =>
+    pairing(i + 1, i + 1, ids[2 * i], ids[2 * i + 1] ?? null),
+  );
+  const log = registeredLog(count, created).add('RoundPaired', {
+    round: 1,
+    stage: 'swiss',
+    pairings,
+  });
+  return { schemaVersion: 1, id: TOURNAMENT_ID, events: log.events };
 }

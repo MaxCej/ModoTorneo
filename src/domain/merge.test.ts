@@ -89,4 +89,15 @@ describe('playersFromDocument', () => {
       { id: P2, name: 'Bruno R.', createdAt: log.events[5].at },
     ]);
   });
+
+  it('returns no entry for guests', () => {
+    const log = logBuilder()
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice' })
+      .add('PlayerRegistered', { playerId: P2, playerName: 'Bruno', guest: false })
+      .add('PlayerRegistered', { playerId: P3, playerName: 'Guest', guest: true });
+    const doc: TournamentDocument = { schemaVersion: 1, id: TOURNAMENT_ID, events: log.events };
+    const { state } = parsed(doc);
+
+    expect(playersFromDocument(doc, state).map((p) => p.id)).toEqual([P1, P2]);
+  });
 });

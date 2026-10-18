@@ -14,11 +14,14 @@ import {
   addClosedRound,
 } from './fixtures/builders';
 import { apply, effectiveEvents, reduce, stateAt } from './reduce';
-import type { Pairing, TournamentEvent } from './schemas/events';
+import type { Pairing, TournamentCreatedPayload, TournamentEvent } from './schemas/events';
 import { IMPLICIT_BYE_RESULT, type MatchResult } from './schemas/matchResult';
 import type { TournamentState } from './state';
 
 const [P1, P2, P3, P4, P5] = PLAYERS;
+
+/** More players than `PLAYERS`, for the auto rounds table. */
+const PLAYERS_16 = Array.from({ length: 16 }, (_, i) => uuid(300 + i));
 
 const WIN_B: MatchResult = { winsA: 0, winsB: 2, draws: 0, kind: 'played' };
 
@@ -57,11 +60,31 @@ describe('reduce', () => {
     const state = reduce(events, TOURNAMENT_ID);
 
     expect(state.players).toEqual({
-      [P1]: { playerId: P1, playerName: 'Alice', deckId, dropped: false, registeredAtRound: 0 },
-      [P2]: { playerId: P2, playerName: 'Bob', dropped: false, registeredAtRound: 0 },
+      [P1]: {
+        playerId: P1,
+        playerName: 'Alice',
+        deckId,
+        guest: false,
+        dropped: false,
+        registeredAtRound: 0,
+      },
+      [P2]: { playerId: P2, playerName: 'Bob', guest: false, dropped: false, registeredAtRound: 0 },
     });
     expect(state.players[P2]).not.toHaveProperty('deckId');
     expect(state.lastSeq).toBe(3);
+  });
+
+  it('stores the guest flag, false when the event omits it', () => {
+    const { events } = logBuilder()
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice' })
+      .add('PlayerRegistered', { playerId: P2, playerName: 'Bob', guest: false })
+      .add('PlayerRegistered', { playerId: P3, playerName: 'Guest', guest: true });
+
+    const { players } = reduce(events, TOURNAMENT_ID);
+
+    expect(players[P1].guest).toBe(false);
+    expect(players[P2].guest).toBe(false);
+    expect(players[P3].guest).toBe(true);
   });
 
   it('marks a dropped player without removing them', () => {
@@ -70,6 +93,39 @@ describe('reduce', () => {
       .add('PlayerDropped', { playerId: P1 });
 
     expect(reduce(events, TOURNAMENT_ID).players[P1]).toMatchObject({ dropped: true });
+  });
+
+  it('removes an unregistered player from the state', () => {
+    const { events } = logBuilder()
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice' })
+      .add('PlayerRegistered', { playerId: P2, playerName: 'Bob' })
+      .add('PlayerUnregistered', { playerId: P1 });
+
+    const state = reduce(events, TOURNAMENT_ID);
+
+    expect(Object.keys(state.players)).toEqual([P2]);
+    expect(state.lastSeq).toBe(4);
+  });
+
+  it('removes a dropped player in setup', () => {
+    const { events } = logBuilder()
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice' })
+      .add('PlayerDropped', { playerId: P1 })
+      .add('PlayerUnregistered', { playerId: P1 });
+
+    expect(reduce(events, TOURNAMENT_ID).players).toEqual({});
+  });
+
+  it('lets the same player id register again after unregistering', () => {
+    const { events } = logBuilder()
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice' })
+      .add('PlayerUnregistered', { playerId: P1 })
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice B.' });
+
+    expect(reduce(events, TOURNAMENT_ID).players[P1]).toMatchObject({
+      playerName: 'Alice B.',
+      dropped: false,
+    });
   });
 
   it('throws FIRST_EVENT_NOT_CREATED for an empty log', () => {
@@ -196,6 +252,94 @@ describe('reduce: swiss rounds', () => {
       swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, null)]),
     );
     expect(corruptError(events)).toMatchObject({ code: 'INVALID_PAIRINGS', seq: 6 });
+  });
+});
+
+describe('reduce: auto swiss rounds', () => {
+  const auto = { ...CREATED_PAYLOAD, swissRounds: null };
+
+  /** Every active player of `registeredLog(count)` paired in order; the last one gets a bye if odd. */
+  const round1 = (count: number) => {
+    const ids = PLAYERS_16.slice(0, count);
+    return swiss(
+      1,
+      Array.from({ length: Math.ceil(count / 2) }, (_, i) =>
+        pairing(i + 1, i + 1, ids[2 * i], ids[2 * i + 1] ?? null),
+      ),
+    );
+  };
+
+  /** The first `count` players of `PLAYERS_16` registered. */
+  const autoLog = (count: number, created: TournamentCreatedPayload = auto) => {
+    const log = logBuilder(created);
+    for (const [i, playerId] of PLAYERS_16.slice(0, count).entries()) {
+      log.add('PlayerRegistered', { playerId, playerName: `Player ${i + 1}` });
+    }
+    return log;
+  };
+
+  it('keeps swissRounds null in setup', () => {
+    expect(reduce(autoLog(9).events, TOURNAMENT_ID).swissRounds).toBeNull();
+  });
+
+  it.each([
+    [5, 3],
+    [9, 4],
+  ])('resolves null to the recommendation for %i active players', (count, expected) => {
+    const { events } = autoLog(count).add('RoundPaired', round1(count));
+    expect(reduce(events, TOURNAMENT_ID).swissRounds).toBe(expected);
+  });
+
+  it('counts only active players', () => {
+    // 10 registered, 2 dropped: 8 active → 3 rounds (10 would give 4).
+    const log = autoLog(10)
+      .add('PlayerDropped', { playerId: PLAYERS_16[8] })
+      .add('PlayerDropped', { playerId: PLAYERS_16[9] })
+      .add('RoundPaired', round1(8));
+    expect(reduce(log.events, TOURNAMENT_ID).swissRounds).toBe(3);
+  });
+
+  it('never changes an explicit value when pairing', () => {
+    const { events } = autoLog(9, { ...CREATED_PAYLOAD, swissRounds: 7 }).add(
+      'RoundPaired',
+      round1(9),
+    );
+    expect(reduce(events, TOURNAMENT_ID).swissRounds).toBe(7);
+  });
+
+  it('checks TOO_MANY_ROUNDS against the resolved value', () => {
+    // 2 active players → 1 round.
+    const log = addClosedRound(autoLog(2), 1, 'swiss', [
+      pairing(1, 1, PLAYERS_16[0], PLAYERS_16[1]),
+    ]);
+    expect(reduce(log.events, TOURNAMENT_ID).swissRounds).toBe(1);
+    log.add('RoundPaired', swiss(2, [pairing(2, 1, PLAYERS_16[0], PLAYERS_16[1])]));
+    expect(corruptError(log.events)).toMatchObject({ code: 'TOO_MANY_ROUNDS' });
+  });
+});
+
+describe('reduce: TournamentDetailsChanged', () => {
+  it('changes only the fields present in the payload', () => {
+    const { events } = logBuilder()
+      .add('TournamentDetailsChanged', { name: 'Saturday Modern', swissRounds: null })
+      .add('TournamentDetailsChanged', { format: 'legacy', location: '' });
+
+    expect(reduce(events, TOURNAMENT_ID)).toMatchObject({
+      name: 'Saturday Modern',
+      date: CREATED_PAYLOAD.date,
+      location: '',
+      format: 'legacy',
+      swissRounds: null,
+      status: 'setup',
+      lastSeq: 3,
+    });
+  });
+
+  it('keeps an explicit swissRounds set by the organizer when round 1 is paired', () => {
+    const { events } = registeredLog(4, { ...CREATED_PAYLOAD, swissRounds: null })
+      .add('TournamentDetailsChanged', { swissRounds: 5 })
+      .add('RoundPaired', swiss(1, [pairing(1, 1, P1, P2), pairing(2, 2, P3, P4)]));
+    expect(reduce(events, TOURNAMENT_ID).swissRounds).toBe(5);
   });
 });
 

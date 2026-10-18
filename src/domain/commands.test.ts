@@ -128,6 +128,30 @@ describe('execute', () => {
     expect(doc).toEqual(before);
   });
 
+  it.each([
+    ['an empty payload', {}],
+    ['only undefined fields', { name: undefined }],
+  ])('returns INVALID_SCHEMA for TournamentDetailsChanged with %s', (_, payload) => {
+    const result = execute(
+      docWithTwoPlayers(),
+      { type: 'TournamentDetailsChanged', payload },
+      fixedDeps(),
+    );
+    expect(result).toMatchObject({ ok: false, error: { code: 'INVALID_SCHEMA', seq: 4 } });
+  });
+
+  it('applies TournamentDetailsChanged with the trimmed name', () => {
+    const { state, event } = unwrap(
+      execute(
+        docWithTwoPlayers(),
+        { type: 'TournamentDetailsChanged', payload: { name: '  Saturday Modern ' } },
+        fixedDeps(),
+      ),
+    );
+    expect(event.payload).toEqual({ name: 'Saturday Modern' });
+    expect(state.name).toBe('Saturday Modern');
+  });
+
   it('rejects a second TournamentCreated', () => {
     const result = execute(
       docWithTwoPlayers(),

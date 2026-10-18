@@ -39,6 +39,13 @@ const samples: Record<TournamentEventType, Sample> = {
         format: 'modern',
         swissRounds: 0,
       },
+      'non-integer swiss rounds': {
+        name: 'FNM',
+        date: '2026-10-11',
+        location: '',
+        format: 'modern',
+        swissRounds: 2.5,
+      },
       'blank name': {
         name: '  ',
         date: '2026-10-11',
@@ -53,11 +60,34 @@ const samples: Record<TournamentEventType, Sample> = {
     invalid: {
       'missing playerName': { playerId: P1 },
       'invalid deckId': { playerId: P1, playerName: 'Alice', deckId: 'burn' },
+      'non-boolean guest': { playerId: P1, playerName: 'Alice', guest: 'yes' },
     },
   },
   PlayerDropped: {
     valid: { playerId: P1 },
     invalid: { 'invalid playerId': { playerId: 'alice' } },
+  },
+  PlayerUnregistered: {
+    valid: { playerId: P1 },
+    invalid: {
+      'invalid playerId': { playerId: 'alice' },
+      'missing playerId': {},
+    },
+  },
+  TournamentDetailsChanged: {
+    valid: {
+      name: 'Saturday Modern',
+      date: '2026-10-12',
+      location: '',
+      format: 'legacy',
+      swissRounds: null,
+    },
+    invalid: {
+      'empty payload': {},
+      'blank name': { name: '  ' },
+      'unknown format': { format: 'brawl' },
+      'zero swiss rounds': { swissRounds: 0 },
+    },
   },
   RoundPaired: {
     valid: {
@@ -103,6 +133,15 @@ const samples: Record<TournamentEventType, Sample> = {
 };
 
 describe('TournamentEventSchema', () => {
+  it('accepts TournamentCreated with swissRounds null (auto)', () => {
+    const event = {
+      ...envelope,
+      type: 'TournamentCreated',
+      payload: { ...(samples.TournamentCreated.valid as object), swissRounds: null },
+    };
+    expect(TournamentEventSchema.parse(event)).toEqual(event);
+  });
+
   describe.each(Object.entries(samples))('%s', (type, { valid, invalid }) => {
     it('parses a valid sample', () => {
       const event = { ...envelope, type, payload: valid };
@@ -113,6 +152,14 @@ describe('TournamentEventSchema', () => {
       expect(TournamentEventSchema.safeParse({ ...envelope, type, payload }).success).toBe(false);
     });
   });
+
+  it.each([{ name: 'FNM' }, { swissRounds: 5 }, { swissRounds: null }, { location: '' }])(
+    'accepts a partial TournamentDetailsChanged %j',
+    (payload) => {
+      const event = { ...envelope, type: 'TournamentDetailsChanged', payload };
+      expect(TournamentEventSchema.parse(event)).toEqual(event);
+    },
+  );
 
   it('rejects an unknown type', () => {
     expect(

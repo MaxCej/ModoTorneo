@@ -8,6 +8,7 @@ export type PlayerEntry = {
   playerId: Uuid;
   playerName: string;
   deckId?: Uuid;
+  guest: boolean; // false when the event omits it
   dropped: boolean;
   registeredAtRound: number; // 0 = before round 1
 };
@@ -27,7 +28,7 @@ export type TournamentState = {
   date: IsoDate;
   location: string;
   format: Format;
-  swissRounds: number;
+  swissRounds: number | null; // null until fixed by the first swiss RoundPaired, or set by the organizer
   topCut: TopCutSize | null; // null until TopCutStarted
   status: TournamentStatus;
   players: Record<Uuid, PlayerEntry>;
@@ -36,6 +37,11 @@ export type TournamentState = {
   voidedSeqs: number[]; // seqs cancelled by RolledBack, ascending
   effectiveSeqs: number[]; // seqs of effective events (valid rollback targets up to lastSeq), ascending
 };
+
+/** Registered players who have not dropped. */
+export function activePlayerCount(state: TournamentState): number {
+  return Object.values(state.players).filter((player) => !player.dropped).length;
+}
 
 /** Builds the initial state from the log's first event. */
 export function initialState(tournamentId: Uuid, event: TournamentCreated): TournamentState {

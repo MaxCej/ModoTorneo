@@ -4,11 +4,14 @@ import type {
   RoundClosed,
   RoundPaired,
   TopCutStarted,
+  TournamentDetailsChanged,
+  TournamentDetailsChangedPayload,
   TournamentEvent,
   TournamentFinished,
 } from './schemas/events';
 import { matchOutcome } from './schemas/matchResult';
-import type { TournamentState } from './state';
+import { activePlayerCount, type TournamentState } from './state';
+import { recommendedSwissRounds } from './swissRounds';
 
 /**
  * Checks one event against the state built from every event before it.
@@ -81,6 +84,24 @@ export function validate(
       return null;
     }
 
+    case 'PlayerUnregistered': {
+      // Once a round exists the player has history; PlayerDropped is the only removal.
+      if (state.status !== 'setup') {
+        return wrongStatus(state, event);
+      }
+      if (!(event.payload.playerId in state.players)) {
+        return domainError(
+          'UNKNOWN_PLAYER',
+          `Player ${event.payload.playerId} is not registered`,
+          event.seq,
+        );
+      }
+      return null;
+    }
+
+    case 'TournamentDetailsChanged':
+      return validateDetailsChanged(state, event);
+
     case 'RoundPaired':
       return event.payload.stage === 'swiss'
         ? validateSwissPairing(state, event)
@@ -113,6 +134,60 @@ export function validate(
   }
 }
 
+export type DetailField = keyof TournamentDetailsChangedPayload;
+
+/** Format is fixed once play starts; swiss rounds are fixed once swiss ends. */
+const EDITABLE_DETAILS: Record<TournamentState['status'], readonly DetailField[]> = {
+  setup: ['name', 'date', 'location', 'format', 'swissRounds'],
+  running: ['name', 'date', 'location', 'swissRounds'],
+  topCut: ['name', 'date', 'location'],
+  finished: ['name', 'date', 'location'],
+};
+
+/** The `TournamentDetailsChanged` fields allowed in `status`. Shared with the UI. */
+export function editableDetails(status: TournamentState['status']): readonly DetailField[] {
+  return EDITABLE_DETAILS[status];
+}
+
+function validateDetailsChanged(
+  state: TournamentState,
+  event: TournamentDetailsChanged,
+): DomainError | null {
+  const allowed = EDITABLE_DETAILS[state.status];
+  const fields = (Object.keys(event.payload) as DetailField[]).filter(
+    (field) => event.payload[field] !== undefined,
+  );
+  const blocked = fields.find((field) => !allowed.includes(field));
+  if (blocked !== undefined) {
+    return domainError(
+      'WRONG_STATUS',
+      `${blocked} cannot change while the tournament is ${state.status}`,
+      event.seq,
+    );
+  }
+
+  const { swissRounds } = event.payload;
+  if (swissRounds === undefined || state.status === 'setup') {
+    return null;
+  }
+  if (swissRounds === null) {
+    return domainError(
+      'INVALID_DETAILS',
+      'Swiss rounds cannot go back to auto once round 1 is paired',
+      event.seq,
+    );
+  }
+  const paired = state.rounds.filter((round) => round.stage === 'swiss').length;
+  if (swissRounds < paired) {
+    return domainError(
+      'INVALID_DETAILS',
+      `Swiss rounds cannot be ${swissRounds}: ${paired} swiss rounds are already paired`,
+      event.seq,
+    );
+  }
+  return null;
+}
+
 function validateTopCutPairing(state: TournamentState, event: RoundPaired): DomainError | null {
   if (state.status !== 'topCut') {
     return wrongStatus(state, event);
@@ -143,7 +218,7 @@ function validateTopCutStarted(state: TournamentState, event: TopCutStarted): Do
       event.seq,
     );
   }
-  const active = Object.values(state.players).filter((player) => !player.dropped).length;
+  const active = activePlayerCount(state);
   if (event.payload.size > active) {
     return domainError(
       'WRONG_STATUS',
@@ -178,10 +253,12 @@ function validateSwissPairing(state: TournamentState, event: RoundPaired): Domai
   if (roundError !== null) {
     return roundError;
   }
-  if (event.payload.round > state.swissRounds) {
+  const swissRounds = resolvedSwissRounds(state);
+  // null only with fewer than 2 active players, which the active-player check below rejects.
+  if (swissRounds !== null && event.payload.round > swissRounds) {
     return domainError(
       'TOO_MANY_ROUNDS',
-      `The tournament has only ${state.swissRounds} swiss rounds`,
+      `The tournament has only ${swissRounds} swiss rounds`,
       event.seq,
     );
   }
@@ -212,6 +289,14 @@ function validateSwissPairing(state: TournamentState, event: RoundPaired): Domai
     );
   }
   return null;
+}
+
+/**
+ * The stored `swissRounds`, or for `null` (auto) the recommendation for the active players.
+ * Shared with the reducer, which stores this value on the first swiss `RoundPaired`.
+ */
+export function resolvedSwissRounds(state: TournamentState): number | null {
+  return state.swissRounds ?? recommendedSwissRounds(activePlayerCount(state));
 }
 
 /** The previous round (if any) is closed and `round` is the next number. */

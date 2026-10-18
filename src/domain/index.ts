@@ -15,4 +15,17 @@ export { parseImportFile, type ParsedImport } from './importFile';
 export { compareLogs, playersFromDocument, type LogComparison } from './merge';
 export { effectiveEvents, reduce, stateAt } from './reduce';
 export { err, ok, type Result } from './result';
-export type { Match, PlayerEntry, Round, TournamentState, TournamentStatus } from './state';
+export {
+  activePlayerCount,
+  type Match,
+  type PlayerEntry,
+  type Round,
+  type TournamentState,
+  type TournamentStatus,
+} from './state';
+export { editableDetails, type DetailField } from './validate';
+export {
+  SWISS_ROUNDS_TABLE,
+  recommendedSwissRounds,
+  recommendedSwissRoundsTop8,
+} from './swissRounds';

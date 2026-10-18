@@ -38,6 +38,15 @@ export default tseslint.config(
             { group: ['@mantine/*'], message: 'src/domain must not depend on Mantine.' },
             { group: ['dexie/*'], message: 'src/domain must not depend on storage.' },
             { group: ['zustand/*'], message: 'src/domain must not depend on UI state.' },
+            // Our own outer layers: they import Dexie and Zustand, so this closes the indirect path.
+            {
+              group: ['**/storage', '**/storage/*'],
+              message: 'src/domain must not depend on storage.',
+            },
+            {
+              group: ['**/store', '**/store/*'],
+              message: 'src/domain must not depend on UI state.',
+            },
           ],
         },
       ],

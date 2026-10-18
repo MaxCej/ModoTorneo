@@ -238,8 +238,8 @@ export function DataPage() {
                 <Table.Tr key={summary.id}>
                   <Table.Td>{summary.name}</Table.Td>
                   <Table.Td>{summary.date}</Table.Td>
-                  <Table.Td>{t(`data.formats.${summary.format}`)}</Table.Td>
-                  <Table.Td>{t(`data.statuses.${summary.status}`)}</Table.Td>
+                  <Table.Td>{t(`formats.${summary.format}`)}</Table.Td>
+                  <Table.Td>{t(`statuses.${summary.status}`)}</Table.Td>
                   <Table.Td>{summary.eventCount}</Table.Td>
                   <Table.Td>
                     <Group gap="xs" wrap="nowrap">

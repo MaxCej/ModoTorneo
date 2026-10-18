@@ -1,7 +1,9 @@
+import { z } from 'zod';
 import {
   err,
   ok,
   parseTournamentDocument,
+  PlayerSchema,
   type DomainError,
   type IsoDateTime,
   type Player,
@@ -36,6 +38,16 @@ function invalidDocument(message: string, cause: DomainError): StorageError {
   return { code: 'INVALID_DOCUMENT', message: `${message}: ${cause.message}`, cause };
 }
 
+/** Parses a player with `PlayerSchema`; failure is `INVALID_PLAYER` with an `INVALID_SCHEMA` cause. */
+function parsePlayer(value: unknown, context: string): Result<Player, StorageError> {
+  const parsed = PlayerSchema.safeParse(value);
+  if (parsed.success) {
+    return ok(parsed.data);
+  }
+  const cause: DomainError = { code: 'INVALID_SCHEMA', message: z.prettifyError(parsed.error) };
+  return err({ code: 'INVALID_PLAYER', message: `${context}: ${cause.message}`, cause });
+}
+
 /** Name order. Fixed to English (the only UI locale) so it does not depend on the runtime. */
 const collator = new Intl.Collator('en');
 
@@ -52,6 +64,7 @@ function rowSummary(row: TournamentRow): TournamentSummary {
     format: row.format,
     status: row.status,
     eventCount: row.eventCount,
+    playerCount: row.playerCount,
     updatedAt: row.updatedAt,
     revision: String(row.revision),
   };
@@ -160,7 +173,16 @@ export class DexieBackend implements StorageBackend {
   listPlayers(): Promise<Result<Player[], StorageError>> {
     return this.run(async () => {
       // Sorted in memory like tournament names: the `name` index orders by code unit, not locale.
-      const players = await this.db.players.toArray();
+      const rows = await this.db.players.toArray();
+      // Symmetric with loadTournament: one corrupted row fails the whole call.
+      const players: Player[] = [];
+      for (const row of rows) {
+        const parsed = parsePlayer(row, `Stored player ${String(row.id)} is invalid`);
+        if (!parsed.ok) {
+          return parsed;
+        }
+        players.push(parsed.value);
+      }
       players.sort((a, b) => collator.compare(a.name, b.name) || byCodeUnit(a.id, b.id));
       return ok(players);
     });
@@ -168,7 +190,12 @@ export class DexieBackend implements StorageBackend {
 
   savePlayer(player: Player): Promise<Result<void, StorageError>> {
     return this.run(async () => {
-      await this.db.players.put(player);
+      const parsed = parsePlayer(player, 'Invalid player');
+      if (!parsed.ok) {
+        return parsed;
+      }
+      // The stored player is the parsed one (name trimmed).
+      await this.db.players.put(parsed.value);
       return ok(undefined);
     });
   }
