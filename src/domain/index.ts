@@ -23,6 +23,7 @@ export {
 export { matchPoints, playerRecords, type PlayerRecord } from './points';
 export { effectiveEvents, reduce, stateAt } from './reduce';
 export { err, ok, type Result } from './result';
+export { lastClosedSwissRound, PERCENTAGE_FLOOR, standings, type Standing } from './standings';
 export {
   activePlayerCount,
   type Match,

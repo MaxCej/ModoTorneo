@@ -15,9 +15,16 @@ import {
 } from './fixtures/builders';
 import { reduce } from './reduce';
 import type { MatchResult } from './schemas/matchResult';
-import { PERCENTAGE_FLOOR, lastClosedSwissRound, tiebreakers } from './standings';
+import {
+  PERCENTAGE_FLOOR,
+  lastClosedSwissRound,
+  rankStandings,
+  standings,
+  tiebreakers,
+  type Standing,
+} from './standings';
 
-const [P1, P2, P3, P4] = PLAYERS;
+const [P1, P2, P3, P4, P5, P6, P7, P8] = PLAYERS;
 
 const played = (winsA: number, winsB: number, draws = 0): MatchResult => ({
   winsA,
@@ -258,5 +265,244 @@ describe('tiebreakers', () => {
     expect(tiebreakers(state, 1)[P3].opponentMatchWinPct).toBe(PERCENTAGE_FLOOR);
     expect(tiebreakers(state, 2)[P3].opponentMatchWinPct).toBeCloseTo((0.5 + 1) / 2, 12);
     expect(tiebreakers(state, 0)[P1]).toMatchObject({ matchPoints: 0, wins: 0 });
+  });
+});
+
+const F = PERCENTAGE_FLOOR;
+
+/** A synthetic unranked row for `Player n`: 3 MP and every percentage at 0.5 unless overridden. */
+const row = (
+  n: number,
+  overrides: Partial<Omit<Standing, 'rank'>> = {},
+): Omit<Standing, 'rank'> => ({
+  playerId: uuid(100 + n),
+  playerName: `Player ${n}`,
+  dropped: false,
+  matchPoints: 3,
+  wins: 1,
+  losses: 0,
+  draws: 0,
+  matchWinPct: 0.5,
+  opponentMatchWinPct: 0.5,
+  gameWinPct: 0.5,
+  opponentGameWinPct: 0.5,
+  ...overrides,
+});
+
+const order = (rows: Standing[]) => rows.map((r) => [r.rank, r.playerName]);
+
+describe('rankStandings', () => {
+  it('orders by match points first', () => {
+    const ranked = rankStandings([
+      row(1, { matchPoints: 3, opponentMatchWinPct: 0.9 }),
+      row(2, { matchPoints: 6 }),
+    ]);
+    expect(order(ranked)).toEqual([
+      [1, 'Player 2'],
+      [2, 'Player 1'],
+    ]);
+  });
+
+  it('breaks equal match points with OMW%', () => {
+    const ranked = rankStandings([
+      row(1, { opponentMatchWinPct: 0.4, gameWinPct: 0.9, opponentGameWinPct: 0.9 }),
+      row(2, { opponentMatchWinPct: 0.6 }),
+    ]);
+    expect(order(ranked)).toEqual([
+      [1, 'Player 2'],
+      [2, 'Player 1'],
+    ]);
+  });
+
+  it('breaks equal OMW% with GW%', () => {
+    const ranked = rankStandings([
+      row(1, { gameWinPct: 0.4, opponentGameWinPct: 0.9 }),
+      row(2, { gameWinPct: 0.6 }),
+    ]);
+    expect(order(ranked)).toEqual([
+      [1, 'Player 2'],
+      [2, 'Player 1'],
+    ]);
+  });
+
+  it('breaks equal GW% with OGW%', () => {
+    const ranked = rankStandings([row(1, { opponentGameWinPct: 0.4 }), row(2)]);
+    expect(order(ranked)).toEqual([
+      [1, 'Player 2'],
+      [2, 'Player 1'],
+    ]);
+  });
+
+  it('does not rank by MW% (it only feeds OMW%)', () => {
+    const ranked = rankStandings([row(2, { matchWinPct: 0.9 }), row(1)]);
+    expect(order(ranked)).toEqual([
+      [1, 'Player 1'],
+      [1, 'Player 2'],
+    ]);
+  });
+
+  it('shares the rank on a full tie, skips the next rank, and orders ties by name', () => {
+    const ranked = rankStandings([
+      row(4, { matchPoints: 0 }),
+      row(3),
+      row(2, { matchPoints: 6 }),
+      row(10),
+    ]);
+    // "Player 10" sorts before "Player 3" with the en collator.
+    expect(order(ranked)).toEqual([
+      [1, 'Player 2'],
+      [2, 'Player 10'],
+      [2, 'Player 3'],
+      [4, 'Player 4'],
+    ]);
+  });
+
+  it('orders players with the same name by player id', () => {
+    const ranked = rankStandings([row(2, { playerName: 'Alex' }), row(1, { playerName: 'Alex' })]);
+    expect(ranked.map((r) => r.playerId)).toEqual([P1, P2]);
+    expect(ranked.map((r) => r.rank)).toEqual([1, 1]);
+  });
+
+  it('ties two values equal up to floating-point noise', () => {
+    expect(0.1 + 0.2).not.toBe(0.3);
+    const ranked = rankStandings([
+      row(2, { opponentMatchWinPct: 0.1 + 0.2 }),
+      row(1, { opponentMatchWinPct: 0.3 }),
+    ]);
+    expect(order(ranked)).toEqual([
+      [1, 'Player 1'],
+      [1, 'Player 2'],
+    ]);
+  });
+});
+
+describe('standings', () => {
+  it('ranks a full tie from the log with a shared rank in name order', () => {
+    // P1 and P3 both win 2-1 against 0-1 opponents: equal on every tiebreaker.
+    const log = swissHistory(PLAYERS.slice(0, 4), [
+      [
+        [P3, P4],
+        [P1, P2],
+      ],
+    ]);
+    expect(order(standings(stateOf(log)))).toEqual([
+      [1, 'Player 1'],
+      [1, 'Player 3'],
+      [3, 'Player 2'],
+      [3, 'Player 4'],
+    ]);
+  });
+
+  it('ranks dropped players and late entries as normal rows', () => {
+    const late = uuid(150);
+    const log = swissHistory(PLAYERS.slice(0, 4), [
+      [
+        [P1, P2],
+        [P3, P4],
+      ],
+    ])
+      .add('PlayerDropped', { playerId: P1 })
+      .add('PlayerRegistered', { playerId: late, playerName: 'Late' });
+    const rows = standings(stateOf(log));
+    expect(rows).toHaveLength(5);
+    expect(rows[0]).toMatchObject({ rank: 1, playerId: P1, dropped: true, matchPoints: 3 });
+    // The late entry has the floors; P2 and P4 lost to 1-0 opponents (OMW% 100%).
+    expect(rows.find((r) => r.playerId === late)).toMatchObject({
+      rank: 5,
+      dropped: false,
+      matchPoints: 0,
+      wins: 0,
+      losses: 0,
+    });
+  });
+
+  it('ranks every player on 0 with the floors before round 1 is closed', () => {
+    const rows = standings(stateOf(registeredLog(2)));
+    expect(rows.map((r) => [r.rank, r.matchPoints, r.opponentMatchWinPct, r.gameWinPct])).toEqual([
+      [1, 0, F, F],
+      [1, 0, F, F],
+    ]);
+  });
+
+  /**
+   * Hand-calculated 8-player, 3-round event (results as A-B games):
+   *   R1: P1-P2 2-0, P3-P4 2-1, P5-P6 1-1-1, P7-P8 0-2
+   *   R2: P1-P3 2-1, P8-P5 1-2, P6-P2 2-0, P4-P7 intentional draw
+   *   R3: P1-P5 0-2, P6-P3 2-1, P8-P4 2-0, P2-P7 1-2
+   *
+   * Player  MP  W-L-D  games W-L-D  MW%            GW%
+   * P1       6  2-1-0  4-3-0        6/9            12/21 = 4/7
+   * P2       0  0-3-0  1-6-0        0   → F        3/21  → F
+   * P3       3  1-2-0  4-5-0        3/9            12/27 = 4/9
+   * P4       1  0-2-1  1-4-0        1/9 → F        3/15  → F
+   * P5       7  2-0-1  5-2-1        7/9            16/24 = 2/3
+   * P6       7  2-0-1  5-2-1        7/9            16/24 = 2/3
+   * P7       4  1-1-1  2-3-0        4/9            6/15  = 0.4
+   * P8       6  2-1-0  5-2-0        6/9            15/21 = 5/7
+   *
+   * F = 0.33. OMW% and OGW% average the three opponents' values above. P5 and P6 tie on MP and
+   * GW%; OMW% puts P5 first. P8 and P1 tie on MP; OMW% puts P8 first.
+   */
+  it('matches a hand-calculated 8-player, 3-round event', () => {
+    const log = swissHistory(PLAYERS, [
+      [
+        [P1, P2, played(2, 0)],
+        [P3, P4, played(2, 1)],
+        [P5, P6, played(1, 1, 1)],
+        [P7, P8, played(0, 2)],
+      ],
+      [
+        [P1, P3, played(2, 1)],
+        [P8, P5, played(1, 2)],
+        [P6, P2, played(2, 0)],
+        [P4, P7, ID],
+      ],
+      [
+        [P1, P5, played(0, 2)],
+        [P6, P3, played(2, 1)],
+        [P8, P4, played(2, 0)],
+        [P2, P7, played(1, 2)],
+      ],
+    ]);
+    // [rank, player, MP, W, L, D, OMW%, GW%, OGW%]
+    const expected = [
+      [1, P5, 7, 2, 0, 1, (7 / 9 + 6 / 9 + 6 / 9) / 3, 2 / 3, (2 / 3 + 5 / 7 + 4 / 7) / 3],
+      [2, P6, 7, 2, 0, 1, (7 / 9 + F + 3 / 9) / 3, 2 / 3, (2 / 3 + F + 4 / 9) / 3],
+      [3, P8, 6, 2, 1, 0, (4 / 9 + 7 / 9 + F) / 3, 5 / 7, (0.4 + 2 / 3 + F) / 3],
+      [4, P1, 6, 2, 1, 0, (F + 3 / 9 + 7 / 9) / 3, 4 / 7, (F + 4 / 9 + 2 / 3) / 3],
+      [5, P7, 4, 1, 1, 1, (6 / 9 + F + F) / 3, 0.4, (5 / 7 + F + F) / 3],
+      [6, P3, 3, 1, 2, 0, (F + 6 / 9 + 7 / 9) / 3, 4 / 9, (F + 4 / 7 + 2 / 3) / 3],
+      [7, P4, 1, 0, 2, 1, (3 / 9 + 4 / 9 + 6 / 9) / 3, F, (4 / 9 + 0.4 + 5 / 7) / 3],
+      [8, P2, 0, 0, 3, 0, (6 / 9 + 7 / 9 + 4 / 9) / 3, F, (4 / 7 + 2 / 3 + 0.4) / 3],
+    ] as const;
+
+    const rows = standings(stateOf(log));
+    expect(rows).toHaveLength(8);
+    for (const [i, [rank, id, mp, w, l, d, omw, gw, ogw]] of expected.entries()) {
+      const r = rows[i];
+      expect([r.rank, r.playerId, r.matchPoints, r.wins, r.losses, r.draws]).toEqual([
+        rank,
+        id,
+        mp,
+        w,
+        l,
+        d,
+      ]);
+      expect(r.opponentMatchWinPct).toBeCloseTo(omw, 12);
+      expect(r.gameWinPct).toBeCloseTo(gw, 12);
+      expect(r.opponentGameWinPct).toBeCloseTo(ogw, 12);
+    }
+    // The same values rounded by hand to 2 decimals, as the table shows them.
+    const pct = (value: number) => (value * 100).toFixed(2);
+    expect(rows.map((r) => [pct(r.opponentMatchWinPct), pct(r.gameWinPct)])).toEqual([
+      ['70.37', '66.67'],
+      ['48.04', '66.67'],
+      ['51.74', '71.43'],
+      ['48.04', '57.14'],
+      ['44.22', '40.00'],
+      ['59.15', '44.44'],
+      ['48.15', '33.00'],
+      ['62.96', '33.00'],
+    ]);
   });
 });
