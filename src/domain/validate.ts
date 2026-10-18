@@ -81,6 +81,21 @@ export function validate(
       return null;
     }
 
+    case 'PlayerUnregistered': {
+      // Once a round exists the player has history; PlayerDropped is the only removal.
+      if (state.status !== 'setup') {
+        return wrongStatus(state, event);
+      }
+      if (!(event.payload.playerId in state.players)) {
+        return domainError(
+          'UNKNOWN_PLAYER',
+          `Player ${event.payload.playerId} is not registered`,
+          event.seq,
+        );
+      }
+      return null;
+    }
+
     case 'RoundPaired':
       return event.payload.stage === 'swiss'
         ? validateSwissPairing(state, event)

@@ -92,6 +92,39 @@ describe('reduce', () => {
     expect(reduce(events, TOURNAMENT_ID).players[P1]).toMatchObject({ dropped: true });
   });
 
+  it('removes an unregistered player from the state', () => {
+    const { events } = logBuilder()
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice' })
+      .add('PlayerRegistered', { playerId: P2, playerName: 'Bob' })
+      .add('PlayerUnregistered', { playerId: P1 });
+
+    const state = reduce(events, TOURNAMENT_ID);
+
+    expect(Object.keys(state.players)).toEqual([P2]);
+    expect(state.lastSeq).toBe(4);
+  });
+
+  it('removes a dropped player in setup', () => {
+    const { events } = logBuilder()
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice' })
+      .add('PlayerDropped', { playerId: P1 })
+      .add('PlayerUnregistered', { playerId: P1 });
+
+    expect(reduce(events, TOURNAMENT_ID).players).toEqual({});
+  });
+
+  it('lets the same player id register again after unregistering', () => {
+    const { events } = logBuilder()
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice' })
+      .add('PlayerUnregistered', { playerId: P1 })
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice B.' });
+
+    expect(reduce(events, TOURNAMENT_ID).players[P1]).toMatchObject({
+      playerName: 'Alice B.',
+      dropped: false,
+    });
+  });
+
   it('throws FIRST_EVENT_NOT_CREATED for an empty log', () => {
     expect(corruptError([])).toMatchObject({ code: 'FIRST_EVENT_NOT_CREATED' });
   });

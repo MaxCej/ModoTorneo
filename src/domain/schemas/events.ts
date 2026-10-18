@@ -49,6 +49,9 @@ export type PlayerRegisteredPayload = z.infer<typeof PlayerRegisteredPayloadSche
 export const PlayerDroppedPayloadSchema = z.object({ playerId: UuidSchema });
 export type PlayerDroppedPayload = z.infer<typeof PlayerDroppedPayloadSchema>;
 
+export const PlayerUnregisteredPayloadSchema = z.object({ playerId: UuidSchema });
+export type PlayerUnregisteredPayload = z.infer<typeof PlayerUnregisteredPayloadSchema>;
+
 export const RoundPairedPayloadSchema = z.object({
   round: RoundNumberSchema,
   stage: z.enum(['swiss', 'topCut']),
@@ -85,6 +88,10 @@ export const PlayerRegisteredSchema = eventSchema(
   PlayerRegisteredPayloadSchema,
 );
 export const PlayerDroppedSchema = eventSchema('PlayerDropped', PlayerDroppedPayloadSchema);
+export const PlayerUnregisteredSchema = eventSchema(
+  'PlayerUnregistered',
+  PlayerUnregisteredPayloadSchema,
+);
 export const RoundPairedSchema = eventSchema('RoundPaired', RoundPairedPayloadSchema);
 export const ResultReportedSchema = eventSchema('ResultReported', ResultReportedPayloadSchema);
 export const RoundClosedSchema = eventSchema('RoundClosed', RoundClosedPayloadSchema);
@@ -98,6 +105,7 @@ export const RolledBackSchema = eventSchema('RolledBack', RolledBackPayloadSchem
 export type TournamentCreated = z.infer<typeof TournamentCreatedSchema>;
 export type PlayerRegistered = z.infer<typeof PlayerRegisteredSchema>;
 export type PlayerDropped = z.infer<typeof PlayerDroppedSchema>;
+export type PlayerUnregistered = z.infer<typeof PlayerUnregisteredSchema>;
 export type RoundPaired = z.infer<typeof RoundPairedSchema>;
 export type ResultReported = z.infer<typeof ResultReportedSchema>;
 export type RoundClosed = z.infer<typeof RoundClosedSchema>;
@@ -109,6 +117,7 @@ export const TournamentEventSchema = z.discriminatedUnion('type', [
   TournamentCreatedSchema,
   PlayerRegisteredSchema,
   PlayerDroppedSchema,
+  PlayerUnregisteredSchema,
   RoundPairedSchema,
   ResultReportedSchema,
   RoundClosedSchema,

@@ -47,6 +47,13 @@ export function apply(
       return { ...next, players: { ...state.players, [playerId]: entry } };
     }
 
+    case 'PlayerUnregistered': {
+      // Removes the entry, so the same playerId can register again.
+      const players = { ...state.players };
+      delete players[event.payload.playerId];
+      return { ...next, players };
+    }
+
     case 'RoundPaired': {
       const { round, stage, pairings } = event.payload;
       const matches = pairings.map((pairing) => ({

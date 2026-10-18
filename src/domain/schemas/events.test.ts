@@ -60,6 +60,13 @@ const samples: Record<TournamentEventType, Sample> = {
     valid: { playerId: P1 },
     invalid: { 'invalid playerId': { playerId: 'alice' } },
   },
+  PlayerUnregistered: {
+    valid: { playerId: P1 },
+    invalid: {
+      'invalid playerId': { playerId: 'alice' },
+      'missing playerId': {},
+    },
+  },
   RoundPaired: {
     valid: {
       round: 1,

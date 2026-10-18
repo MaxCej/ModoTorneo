@@ -199,6 +199,47 @@ describe('validate: PlayerDropped', () => {
   });
 });
 
+describe('validate: PlayerUnregistered', () => {
+  it('accepts a registered player in setup', () => {
+    expect(
+      validate(stateWith(registeredP1), event(3, 'PlayerUnregistered', { playerId: P1 })),
+    ).toBeNull();
+  });
+
+  it('accepts a dropped player in setup', () => {
+    expect(
+      validate(stateWith(droppedP1), event(4, 'PlayerUnregistered', { playerId: P1 })),
+    ).toBeNull();
+  });
+
+  it.each(['running', 'topCut', 'finished'] as const)('rejects it while %s', (status) => {
+    const state = { ...stateWith(registeredP1), status };
+    expect(validate(state, event(3, 'PlayerUnregistered', { playerId: P1 }))).toMatchObject({
+      code: 'WRONG_STATUS',
+      seq: 3,
+    });
+  });
+
+  it('returns WRONG_STATUS once round 1 is paired', () => {
+    expect(
+      validateNext(reduceLog(round1Open()), 'PlayerUnregistered', { playerId: P1 }),
+    ).toMatchObject({ code: 'WRONG_STATUS' });
+  });
+
+  it('rejects an unknown player', () => {
+    expect(
+      validate(stateWith(registeredP1), event(3, 'PlayerUnregistered', { playerId: P2 })),
+    ).toMatchObject({ code: 'UNKNOWN_PLAYER', seq: 3 });
+  });
+
+  it('rejects a player who was already unregistered', () => {
+    const state = stateWith((log) => registeredP1(log).add('PlayerUnregistered', { playerId: P1 }));
+    expect(validate(state, event(4, 'PlayerUnregistered', { playerId: P1 }))).toMatchObject({
+      code: 'UNKNOWN_PLAYER',
+    });
+  });
+});
+
 describe('validate: RoundPaired (swiss)', () => {
   const fourPlayers = () => reduceLog(registeredLog(4));
 
