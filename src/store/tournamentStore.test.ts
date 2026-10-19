@@ -190,7 +190,7 @@ describe('tournamentStore dispatch', () => {
 
   it('keeps the document on UNAVAILABLE and refuses commands until retrySave', async () => {
     const { backend, store } = await openStore();
-    const error = { code: 'UNAVAILABLE' as const, message: 'Cannot reach GitHub: Failed to fetch' };
+    const error = { code: 'UNAVAILABLE' as const, message: 'Failed to fetch' };
     const saveSpy = vi.spyOn(backend, 'saveTournament').mockResolvedValueOnce({ ok: false, error });
 
     expect(store.getState().dispatch(register(P1, 'Alice')).ok).toBe(true);

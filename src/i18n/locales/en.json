@@ -6,6 +6,7 @@
   "nav": {
     "tournaments": "Tournaments",
     "data": "Data",
+    "settings": "Settings",
     "toggle": "Toggle navigation",
     "label": "Main navigation"
   },
@@ -327,6 +328,29 @@
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"
+  },
+  "settings": {
+    "title": "Settings",
+    "statusLocal": "Storage: this browser",
+    "statusGitHub": "Storage: GitHub ({{owner}}/{{repo}})",
+    "owner": "Owner",
+    "repo": "Repository",
+    "token": "Fine-grained token",
+    "tokenHelp": "Create a private repository and a fine-grained token with access to that repository only and Contents: Read and write.",
+    "migrationHint": "To move existing data, export it on the Data page first, then import it after connecting.",
+    "testConnection": "Test connection",
+    "testing": "Testing connection",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "pendingWork": "Wait until the current tournament is saved.",
+    "result": {
+      "private": "Connected to {{name}}.",
+      "public": "Connected to {{name}}. This repository is public: player names will be visible to anyone.",
+      "unauthorized": "The token was rejected.",
+      "notFound": "Repository not found, or the token has no access to it.",
+      "readOnly": "The token cannot write to this repository.",
+      "unavailable": "Cannot reach GitHub: {{message}}"
+    }
   },
   "data": {
     "title": "Data",

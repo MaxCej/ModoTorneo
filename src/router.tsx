@@ -5,6 +5,9 @@ import { AppLayout } from './app/AppLayout';
 // One chunk per page, so the main bundle stays small.
 const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })));
 const DataPage = lazy(() => import('./pages/DataPage').then((m) => ({ default: m.DataPage })));
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
 const NewTournamentPage = lazy(() =>
   import('./pages/NewTournamentPage').then((m) => ({ default: m.NewTournamentPage })),
 );
@@ -23,6 +26,7 @@ export const routes: RouteObject[] = [
       { path: '/tournaments/new', element: <NewTournamentPage /> },
       { path: '/tournaments/:id', element: <TournamentPage /> },
       { path: '/data', element: <DataPage /> },
+      { path: '/settings', element: <SettingsPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

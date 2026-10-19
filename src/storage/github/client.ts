@@ -153,7 +153,7 @@ export class GitHubClient {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return err({ code: 'UNAVAILABLE', message: `Cannot reach GitHub: ${message}` });
+      return err({ code: 'UNAVAILABLE', message });
     }
     let parsed: unknown = null;
     try {

@@ -63,7 +63,7 @@ describe('testConnection', () => {
     expect(await check(fake)).toEqual({
       ok: false,
       reason: 'unavailable',
-      message: 'Cannot reach GitHub: Failed to fetch',
+      message: 'Failed to fetch',
     });
     fake.offline = false;
     fake.failNext('GET', 503);

@@ -200,7 +200,7 @@ describe('GitHubClient', () => {
     fake.offline = true;
     expect(await client.readFile('a.json')).toEqual({
       ok: false,
-      error: { code: 'UNAVAILABLE', message: 'Cannot reach GitHub: Failed to fetch' },
+      error: { code: 'UNAVAILABLE', message: 'Failed to fetch' },
     });
   });
 

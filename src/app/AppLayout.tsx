@@ -5,8 +5,17 @@ import { useTranslation } from 'react-i18next';
 import { Link, Outlet, useLocation } from 'react-router';
 
 const NAV_ITEMS = [
-  { to: '/', label: 'nav.tournaments', isActive: (path: string) => !path.startsWith('/data') },
+  {
+    to: '/',
+    label: 'nav.tournaments',
+    isActive: (path: string) => !path.startsWith('/data') && !path.startsWith('/settings'),
+  },
   { to: '/data', label: 'nav.data', isActive: (path: string) => path.startsWith('/data') },
+  {
+    to: '/settings',
+    label: 'nav.settings',
+    isActive: (path: string) => path.startsWith('/settings'),
+  },
 ] as const;
 
 /** Header and navigation around every page. The navbar collapses behind a burger on small screens. */

@@ -469,7 +469,7 @@ describe('TournamentPage', () => {
     await screen.findByRole('button', { name: 'Edit details' });
     vi.spyOn(backend, 'saveTournament').mockResolvedValueOnce({
       ok: false,
-      error: { code: 'UNAVAILABLE', message: 'Cannot reach GitHub: Failed to fetch' },
+      error: { code: 'UNAVAILABLE', message: 'Failed to fetch' },
     });
 
     act(() => {
@@ -480,9 +480,7 @@ describe('TournamentPage', () => {
     });
 
     expect(
-      await screen.findByText(
-        'Not saved: Cannot reach GitHub: Failed to fetch. Your changes are kept on this page.',
-      ),
+      await screen.findByText('Not saved: Failed to fetch. Your changes are kept on this page.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Not saved')).toBeInTheDocument();
     expect(screen.getByText('Mine')).toBeInTheDocument();
