@@ -86,7 +86,7 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
 | `PlayersSwapped`           | round, playerA, playerB: trade seats in the open swiss round    |
 | `ResultReported`           | matchId, result (games won A/B, draws, kind)                    |
 | `RoundClosed`              | round                                                           |
-| `TopCutStarted`            | size (4, 8, 16 or 32)                                           |
+| `TopCutStarted`            | size (4, 8, 16 or 32), optional bestOf (3 or 5; missing = 3)    |
 | `TournamentFinished`       | (none)                                                          |
 | `RolledBack`               | toSeq: cancels every effective event after it                   |
 
@@ -107,7 +107,8 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
   points). An unplayed match is a loss for both players. Top cut rounds do not count
   (`src/domain/points.ts`).
 - **Match length:** swiss matches are best of three. A custom result allows at most 2 wins
-  per player and 3 games in total (`fitsBestOf` in `src/domain/schemas/matchResult.ts`).
+  per player and 3 games in total (`fitsBestOf` in `src/domain/schemas/matchResult.ts`). Top
+  cut matches are best of three or five, chosen when the top cut starts.
 - **Swiss pairing** (`src/domain/pairing.ts`):
   - Round 1 is random. Later rounds pair players with the same match points, in random
     order, and the odd player of a group floats down to the next one.
@@ -134,6 +135,28 @@ rounds only: the open round's reported results and top cut rounds never change t
   played.
 - **Ties:** players equal on every tiebreaker share the rank (1, 2, 2, 4) and are listed by
   name. Dropped players and late entries are ranked like everyone else.
+
+## Top cut
+
+The top cut is optional single elimination, started after any closed swiss round
+(`src/domain/topCut.ts`).
+
+- **Size:** Top 4, 8, 16 or 32, never more than the active players. The default comes from the
+  active players: fewer than 8 none (Top 4 is preselected with a hint), 8–16 Top 4, 17–32 Top 8,
+  33–64 Top 16, 65+ Top 32.
+- **Best of:** three or five, stored on `TopCutStarted`. Results must have a winner and fit the
+  best-of; the domain refuses others (`TOP_CUT_DRAW`, `RESULT_EXCEEDS_BEST_OF`).
+- **Seeding:** the swiss standings after the last closed swiss round, active players only.
+  Players tied on every tiebreaker are ordered at random (MTR style), including a tie at the cut
+  line. The first top cut round stores the draw, so a replay gives the same bracket.
+- **Bracket:** standard order (Top 8: 1v8, 4v5, 2v7, 3v6), so seeds 1 and 2 can only meet in the
+  final. Each later round pairs the winners of tables 1–2, 3–4… of the previous one; the better
+  seed is the first player. The domain checks the bracket shape and that winners advance, not the
+  seeding.
+- **During the top cut:** no drops, late entries, swaps or redo pairings. A player who leaves
+  concedes: report the opponent's win. Rollback (History) fixes mistakes.
+- **Placings:** winner of the final 1st, its loser 2nd, semifinal losers 3rd–4th, quarterfinal
+  losers 5th–8th, and so on. Players still in when the tournament finishes share 1st–Nth.
 
 ## Restore, rollback and redo pairings
 
@@ -162,11 +185,19 @@ lazily, one chunk each.
 - **Tournament (`/#/tournaments/<id>`):**
   - **Details:** inline edit of the fields the current status allows, and a "Recommended rounds"
     table with the row for the current player count highlighted.
-  - **Round controls:** "Pair round N" (random round 1, then by match points), "Close round N"
-    once every result is in, "Redo pairings" (with confirmation) while a swiss round is open, and
-    "Finish tournament" (with confirmation) after any closed round.
-  - **Tabs:** "Players" (registration), "Standings", one tab per round, and "History". The open
-    round opens by default.
+  - **Round controls:** "Pair round N" (random round 1, then by match points; in the top cut, the
+    next bracket round until the final), "Close round N" once every result is in, "Redo
+    pairings" (with confirmation) while a swiss round is open, "Start top cut" after any closed
+    swiss round with at least 4 active players, and "Finish tournament" (with confirmation) after
+    any closed round.
+  - **Start top cut:** size (default from the player count), best of 3 or 5, and the seeds with
+    their match points. Tied players carry a "Tied" badge, and a tie at the cut line is named.
+    Confirming starts the top cut and pairs its first round in one save.
+  - **Tabs:** "Players" (registration), "Standings", "Top cut" (once it has started), one tab per
+    round, and "History". Top cut round tabs are named "Quarterfinals", "Semifinals", "Final"
+    (and "Round of 16", "Round of 32"). The open round opens by default.
+  - **Top cut tab:** the bracket, one column per round, with "(seed) name", the score and the
+    winner in bold, and the placings table.
   - **Standings tab:** rank, player, MP, W-L-D, OMW%, GW% and OGW% (2 decimals), with a
     "Dropped" badge. "After round" picks any closed swiss round (the last one by default).
     Before round 1 is closed it says so.
@@ -178,7 +209,8 @@ lazily, one chunk each.
     can be changed until the round is closed. Each player shows points and W-L-D from earlier
     rounds. "By player" lists everyone alphabetically with table and opponent. "Swap players"
     trades two players' seats in matches without a result. Rematches and repeated byes show as
-    warnings.
+    warnings. In the top cut the one-click results are winner-only for the best-of (best of five:
+    3-0, 3-1, 3-2, 2-3, 1-3, 0-3), with no draw, ID or Unplayed.
   - **Registration:** the player registry on the left, registered players on the right. Click a
     player (or filter and press Enter) to register them; "Remove" undoes a registration in setup.
     "New player" adds to the registry and registers; "Add guest" registers for this tournament
@@ -289,7 +321,8 @@ The roadmap and design decisions live in the specs under `specs/`.
 A full swiss event runs in the browser: registration (registry players and guests, late entries,
 drops), swiss pairings, result entry, swaps, standings with MTR tiebreakers and finishing, all
 autosaved to IndexedDB. The History tab rolls back to any earlier event, and "Redo pairings"
-re-pairs the open swiss round. Top cut is next.
+re-pairs the open swiss round. An optional Top 4 / 8 / 16 / 32 (best of three or five) runs to a
+final with a bracket and placings. GitHub storage (SPEC 09) is next.
 
 ## License
 
