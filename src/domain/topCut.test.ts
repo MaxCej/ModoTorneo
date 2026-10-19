@@ -18,9 +18,12 @@ import {
   pairTopCutRound,
   seedPreview,
   startTopCutCommands,
+  topCutBracket,
+  topCutPlacings,
   topCutRoundName,
   topCutSeeds,
 } from './topCut';
+import fixture from './fixtures/top4-8players.json';
 
 const [P1, P2, P3, P4, P5, P6, P7, P8] = PLAYERS;
 
@@ -327,5 +330,124 @@ describe('startTopCutCommands', () => {
     const before = JSON.stringify(doc);
     startTopCutCommands(doc, 8, 3, testDeps());
     expect(JSON.stringify(doc)).toBe(before);
+  });
+});
+
+const placeOf = (log: LogBuilder) =>
+  topCutPlacings(stateOf(log)).map((p) => [p.playerId, p.from, p.to]);
+
+describe('topCutBracket', () => {
+  it('is null before TopCutStarted', () => {
+    expect(topCutBracket(stateOf(fourWinners()))).toBeNull();
+  });
+
+  it('has no rounds before the first top cut round', () => {
+    const log = fourWinners().add('TopCutStarted', { size: 4, bestOf: 5 });
+    expect(topCutBracket(stateOf(log))).toEqual({ size: 4, bestOf: 5, rounds: [] });
+  });
+
+  it('lists each top cut round with seeds, results and winners', () => {
+    const log = fourWinners().add('TopCutStarted', { size: 4 });
+    const semis = paired(log);
+    playRound(log, semis, [WIN_A, WIN_B]);
+    log.add('RoundPaired', paired(log));
+    const bracket = topCutBracket(stateOf(log));
+
+    // Seeds P1, P3, P5, P7: semifinals P1 (1) v P7 (4) and P3 (2) v P5 (3); P5 wins table 2.
+    expect(bracket?.rounds.map((r) => [r.round, r.name])).toEqual([
+      [2, 'semifinals'],
+      [3, 'final'],
+    ]);
+    expect(bracket?.rounds[0].matches).toEqual([
+      {
+        table: 1,
+        playerA: { playerId: P1, seed: 1 },
+        playerB: { playerId: P7, seed: 4 },
+        result: WIN_A,
+        winner: P1,
+      },
+      {
+        table: 2,
+        playerA: { playerId: P3, seed: 2 },
+        playerB: { playerId: P5, seed: 3 },
+        result: WIN_B,
+        winner: P5,
+      },
+    ]);
+    expect(bracket?.rounds[1].matches).toEqual([
+      {
+        table: 1,
+        playerA: { playerId: P1, seed: 1 },
+        playerB: { playerId: P5, seed: 3 },
+        result: null,
+        winner: null,
+      },
+    ]);
+  });
+});
+
+describe('topCutPlacings', () => {
+  it('is empty before the first top cut round', () => {
+    expect(placeOf(fourWinners().add('TopCutStarted', { size: 4 }))).toEqual([]);
+  });
+
+  it('places a finished Top 8: 1st, 2nd, two 3rd–4th and four 5th–8th', () => {
+    const log = fourWinners().add('TopCutStarted', { size: 8 });
+    playRound(log, paired(log)); // P1, P7, P3, P5 win
+    playRound(log, paired(log)); // P1, P3 win
+    playRound(log, paired(log), [WIN_B]); // P3 wins the final
+    log.add('TournamentFinished', {});
+
+    expect(placeOf(log)).toEqual([
+      [P3, 1, 1],
+      [P1, 2, 2],
+      [P5, 3, 4],
+      [P7, 3, 4],
+      [P2, 5, 8],
+      [P4, 5, 8],
+      [P6, 5, 8],
+      [P8, 5, 8],
+    ]);
+  });
+
+  it('gives the finalists 1st–2nd when the tournament finishes after the semifinals', () => {
+    const log = fourWinners().add('TopCutStarted', { size: 4 });
+    playRound(log, paired(log));
+    log.add('TournamentFinished', {});
+
+    expect(placeOf(log)).toEqual([
+      [P1, 1, 2],
+      [P3, 1, 2],
+      [P5, 3, 4],
+      [P7, 3, 4],
+    ]);
+  });
+
+  it('shares 1st to N among players still in during a round', () => {
+    const log = fourWinners().add('TopCutStarted', { size: 4 });
+    const semis = paired(log);
+    log.add('RoundPaired', semis);
+    log.add('ResultReported', { matchId: semis.pairings[0].matchId, result: WIN_A });
+
+    // P7 lost; P1 won; P3 and P5 have not played yet.
+    expect(placeOf(log)).toEqual([
+      [P1, 1, 3],
+      [P3, 1, 3],
+      [P5, 1, 3],
+      [P7, 3, 4],
+    ]);
+  });
+
+  it('places Diego 1st and Alice 2nd in the SPEC 02 fixture', () => {
+    const doc = fixture as TournamentDocument;
+    const placings = topCutPlacings(reduce(doc.events, doc.id));
+    expect(placings.slice(0, 2).map((p) => [p.playerId, p.from, p.to])).toEqual([
+      [P4, 1, 1],
+      [P1, 2, 2],
+    ]);
+    expect(placings.slice(2).map((p) => [p.from, p.to])).toEqual([
+      [3, 4],
+      [3, 4],
+    ]);
   });
 });

@@ -6,6 +6,7 @@ import { err, ok, type Result } from './result';
 import type { BestOf, TopCutSize, Uuid } from './schemas/common';
 import type { TournamentDocument } from './schemas/document';
 import type { Pairing, RoundPairedPayload } from './schemas/events';
+import type { MatchResult } from './schemas/matchResult';
 import { standings, type Standing } from './standings';
 import { matchWinner, type Round, type TournamentState } from './state';
 
@@ -219,4 +220,82 @@ export function startTopCutCommands(
   const commands: [Command, Command] = [start, { type: 'RoundPaired', payload: paired.value }];
   const checked = executeAll(doc, commands, deps);
   return checked.ok ? ok(commands) : checked;
+}
+
+export type BracketPlayer = { playerId: Uuid; seed: number };
+
+export type BracketMatch = {
+  table: number;
+  playerA: BracketPlayer;
+  playerB: BracketPlayer;
+  result: MatchResult | null;
+  winner: Uuid | null;
+};
+
+export type BracketRound = { round: number; name: TopCutRoundName; matches: BracketMatch[] };
+
+/** The top cut so far: one entry per paired top cut round. */
+export type Bracket = { size: TopCutSize; bestOf: BestOf; rounds: BracketRound[] };
+
+/** `null` before TopCutStarted. Matches are in table order. */
+export function topCutBracket(state: TournamentState): Bracket | null {
+  if (state.topCut === null || state.topCutBestOf === null) {
+    return null;
+  }
+  const topCutRounds = state.rounds.filter((round) => round.stage === 'topCut');
+  const seedOf =
+    topCutRounds.length === 0
+      ? {}
+      : seedsFromFirstRound(topCutRounds[0], bracketOrder(state.topCut));
+  const rounds = topCutRounds.map((round) => ({
+    round: round.number,
+    name: topCutRoundName(round.matches.length),
+    matches: [...round.matches]
+      .sort((a, b) => a.table - b.table)
+      .map((match) => ({
+        table: match.table,
+        playerA: { playerId: match.playerA, seed: seedOf[match.playerA] },
+        // Top cut rounds have no byes (validated).
+        playerB: { playerId: match.playerB as Uuid, seed: seedOf[match.playerB as Uuid] },
+        result: match.result,
+        winner: matchWinner(match),
+      })),
+  }));
+  return { size: state.topCut, bestOf: state.topCutBestOf, rounds };
+}
+
+/** A top cut place: `from === to` for a single place (1st, 2nd), a range otherwise (3rd–4th). */
+export type Placing = { playerId: Uuid; seed: number; from: number; to: number };
+
+/**
+ * Winner of the final 1st, its loser 2nd, a loser in a round of `m > 1` matches `m + 1` to `2m`.
+ * Players not yet eliminated share `1` to `N`, the number of players still in.
+ * Best place first, then by seed. Empty before the first top cut round.
+ */
+export function topCutPlacings(state: TournamentState): Placing[] {
+  const bracket = topCutBracket(state);
+  const last = bracket?.rounds.at(-1);
+  if (bracket === null || last === undefined) {
+    return [];
+  }
+  const placings: Placing[] = [];
+  for (const round of bracket.rounds) {
+    const m = round.matches.length;
+    for (const match of round.matches) {
+      if (match.winner === null) {
+        continue;
+      }
+      const loser = match.winner === match.playerA.playerId ? match.playerB : match.playerA;
+      placings.push({ ...loser, from: m === 1 ? 2 : m + 1, to: 2 * m });
+    }
+  }
+  const alive = last.matches.flatMap((match) =>
+    match.winner === null
+      ? [match.playerA, match.playerB]
+      : [match.winner === match.playerA.playerId ? match.playerA : match.playerB],
+  );
+  for (const player of alive) {
+    placings.push({ ...player, from: 1, to: alive.length });
+  }
+  return placings.sort((a, b) => a.from - b.from || a.seed - b.seed);
 }
