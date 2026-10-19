@@ -24,7 +24,7 @@ import { RoundPanel } from './tournament/RoundPanel';
 import { StandingsPanel } from './tournament/StandingsPanel';
 
 /** The panel whose command was rejected last, so its error shows under it. */
-type Panel = 'details' | 'registration' | 'rounds' | 'round';
+type Panel = 'details' | 'registration' | 'rounds' | 'round' | 'history';
 
 const PLAYERS_TAB = 'players';
 const STANDINGS_TAB = 'standings';
@@ -161,7 +161,10 @@ export function TournamentPage() {
                 </Tabs.Panel>
               ))}
               <Tabs.Panel value={HISTORY_TAB} pt="md">
-                <HistoryPanel />
+                <Stack>
+                  <HistoryPanel onDispatch={dispatchFrom('history')} />
+                  {commandError && errorPanel === 'history' && <CommandErrorAlert />}
+                </Stack>
               </Tabs.Panel>
             </Tabs>
           </>

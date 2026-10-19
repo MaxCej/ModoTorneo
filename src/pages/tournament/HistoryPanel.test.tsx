@@ -1,7 +1,7 @@
 import { MantineProvider } from '@mantine/core';
-import { render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { reduce, type MatchResult, type TournamentEvent } from '../../domain';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ok, reduce, type MatchResult, type TournamentEvent } from '../../domain';
 import {
   PLAYERS,
   TOURNAMENT_ID,
@@ -24,12 +24,15 @@ beforeEach(() => {
 
 function renderPanel(events: TournamentEvent[]) {
   const doc = { schemaVersion: 1 as const, id: TOURNAMENT_ID, events };
-  useTournamentStore.setState({ doc, state: reduce(events, TOURNAMENT_ID) });
+  const state = reduce(events, TOURNAMENT_ID);
+  useTournamentStore.setState({ doc, state });
+  const onDispatch = vi.fn(() => ok(state));
   render(
     <MantineProvider env="test">
-      <HistoryPanel />
+      <HistoryPanel onDispatch={onDispatch} />
     </MantineProvider>,
   );
+  return onDispatch;
 }
 
 /** Body rows, top to bottom. */
@@ -144,5 +147,65 @@ describe('HistoryPanel', () => {
     for (const seq of [7, 6, 1]) {
       expect(within(rowOf(seq)).getByRole('button', { name: 'Roll back to here' })).toBeEnabled();
     }
+  });
+
+  it('opens a modal with the undone events by type and the resulting status and round', () => {
+    renderPanel(closedRound().events);
+
+    fireEvent.click(within(rowOf(6)).getByRole('button', { name: 'Roll back to here' }));
+
+    const modal = within(screen.getByRole('dialog', { name: 'Roll back to #6' }));
+    expect(modal.getByText('This undoes 3 events:')).toBeInTheDocument();
+    expect(modal.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      '2 results reported',
+      '1 round closed',
+    ]);
+    expect(
+      modal.getByText('After the rollback the tournament is running with round 1 open.'),
+    ).toBeInTheDocument();
+    expect(
+      modal.getByText('Undone events stay in the history. They cannot be restored.'),
+    ).toBeInTheDocument();
+  });
+
+  it('names the status after the last closed round, or setup with no rounds', () => {
+    const log = closedRound().add('RoundPaired', {
+      round: 2,
+      stage: 'swiss',
+      pairings: [pairing(3, 1, P1, P3), pairing(4, 2, P2, P4)],
+    });
+    renderPanel(log.events);
+
+    fireEvent.click(within(rowOf(9)).getByRole('button', { name: 'Roll back to here' }));
+    expect(
+      screen.getByText('After the rollback the tournament is running after round 1.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('1 round paired')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(within(rowOf(5)).getByRole('button', { name: 'Roll back to here' }));
+    expect(screen.getByText('This undoes 5 events:')).toBeInTheDocument();
+    expect(screen.getByText('After the rollback the tournament is in setup.')).toBeInTheDocument();
+  });
+
+  it('dispatches nothing on Cancel', () => {
+    const onDispatch = renderPanel(closedRound().events);
+
+    fireEvent.click(within(rowOf(6)).getByRole('button', { name: 'Roll back to here' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(onDispatch).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('dispatches one RolledBack to the row on "Roll back"', () => {
+    const onDispatch = renderPanel(closedRound().events);
+
+    fireEvent.click(within(rowOf(8)).getByRole('button', { name: 'Roll back to here' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Roll back' }));
+
+    expect(onDispatch).toHaveBeenCalledTimes(1);
+    expect(onDispatch).toHaveBeenCalledWith({ type: 'RolledBack', payload: { toSeq: 8 } });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

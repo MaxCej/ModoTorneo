@@ -435,3 +435,82 @@ describe('TournamentPage', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('TournamentPage rollback', () => {
+  /** Seqs 1–5: created, 4 registered. 6–9: round 1. 10–13: round 2. 14: finished. */
+  async function openFinished() {
+    const [a, b, c, d] = playerIds(4);
+    const log = swissHistory(playerIds(4), [
+      [
+        [a, b],
+        [c, d],
+      ],
+      [
+        [a, c],
+        [b, d],
+      ],
+    ]).add('TournamentFinished', {});
+    await backend.saveTournament({ schemaVersion: 1, id: TOURNAMENT_ID, events: log.events }, null);
+    renderPage();
+    fireEvent.click(await screen.findByRole('tab', { name: 'History' }));
+  }
+
+  const historyRows = () =>
+    within(screen.getByRole('table', { name: 'History' }))
+      .getAllByRole('row')
+      .slice(1);
+  const rowOf = (seq: number) =>
+    historyRows().find((row) => within(row).getAllByRole('cell')[0].textContent === `#${seq}`)!;
+
+  function rollBackTo(seq: number) {
+    fireEvent.click(within(rowOf(seq)).getByRole('button', { name: 'Roll back to here' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: `Roll back to #${seq}` })).getByRole('button', {
+        name: 'Roll back',
+      }),
+    );
+  }
+
+  it('reopens a closed round, keeps History selected and lets results change again', async () => {
+    await openFinished();
+
+    rollBackTo(12);
+
+    expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(historyRows()[0]).getByText('Rolled back to #12')).toBeInTheDocument();
+    for (const seq of [13, 14]) {
+      expect(within(rowOf(seq)).getByText('Undone')).toBeInTheDocument();
+    }
+    expect(screen.getByRole('button', { name: 'Close round 2' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Round 2' }));
+    const table1 = within(screen.getByRole('group', { name: 'Table 1' }));
+    fireEvent.click(table1.getByRole('button', { name: '2-0' }));
+
+    await idle();
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    expect(stored.ok).toBe(true);
+    if (stored.ok) {
+      expect(stored.value.doc.events).toHaveLength(16);
+      expect(stored.value.doc.events[14]).toMatchObject({
+        type: 'RolledBack',
+        payload: { toSeq: 12 },
+      });
+      expect(stored.value.state.rounds[1].closed).toBe(false);
+      expect(stored.value.state.voidedSeqs).toEqual([13, 14]);
+    }
+  });
+
+  it('returns a finished tournament to running', async () => {
+    await openFinished();
+    expect(screen.queryByRole('button', { name: 'Finish tournament' })).not.toBeInTheDocument();
+
+    rollBackTo(13);
+
+    expect(screen.getByRole('button', { name: 'Finish tournament' })).toBeInTheDocument();
+    await idle();
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    expect(stored.ok && stored.value.state.status).toBe('running');
+    expect(stored.ok && stored.value.doc.events).toHaveLength(15);
+  });
+});
