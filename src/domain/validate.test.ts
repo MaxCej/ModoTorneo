@@ -19,7 +19,7 @@ import type { MatchResult } from './schemas/matchResult';
 import type { TournamentState } from './state';
 import { validate } from './validate';
 
-const [P1, P2, P3, P4, P5] = PLAYERS;
+const [P1, P2, P3, P4, P5, P6, P7, P8] = PLAYERS;
 
 type Log = ReturnType<typeof logBuilder>;
 
@@ -671,8 +671,85 @@ describe('validate: RoundPaired (topCut)', () => {
     expect(validateNext(started(), 'RoundPaired', topCut(3, SEMIS))).toBeNull();
   });
 
-  it('does not require every active player to be paired', () => {
-    expect(validateNext(started(), 'RoundPaired', topCut(3, [pairing(5, 1, P1, P2)]))).toBeNull();
+  it.each([
+    ['too few matches', [pairing(5, 1, P1, P4)]],
+    ['a table outside 1..size / 2', [pairing(5, 1, P1, P4), pairing(6, 3, P2, P3)]],
+  ])('rejects a first top cut round with %s', (_, pairings) => {
+    expect(validateNext(started(), 'RoundPaired', topCut(3, pairings))).toMatchObject({
+      code: 'INVALID_PAIRINGS',
+    });
+  });
+
+  it('does not check the seeding against the standings', () => {
+    const reversed = [pairing(5, 1, P4, P1), pairing(6, 2, P3, P2)];
+    expect(validateNext(started(), 'RoundPaired', topCut(3, reversed))).toBeNull();
+  });
+
+  describe('after the semifinals', () => {
+    // SEMIS: P1 beats P4 at table 1, P2 beats P3 at table 2 (WIN_A).
+    const semisDone = () =>
+      reduceLog(addClosedRound(swissDone().add('TopCutStarted', { size: 4 }), 3, 'topCut', SEMIS));
+
+    it.each([
+      ['P1 v P2', [pairing(7, 1, P1, P2)]],
+      ['P2 v P1', [pairing(7, 1, P2, P1)]],
+    ])('accepts the final between the winners (%s)', (_, pairings) => {
+      expect(validateNext(semisDone(), 'RoundPaired', topCut(4, pairings))).toBeNull();
+    });
+
+    it.each([
+      ['a loser', [pairing(7, 1, P1, P3)]],
+      ['two matches', [pairing(7, 1, P1, P2), pairing(8, 2, P3, P4)]],
+      ['table 2', [pairing(7, 2, P1, P2)]],
+    ])('rejects a final with %s', (_, pairings) => {
+      expect(validateNext(semisDone(), 'RoundPaired', topCut(4, pairings))).toMatchObject({
+        code: 'INVALID_PAIRINGS',
+      });
+    });
+
+    it('rejects a round after the final', () => {
+      const log = addClosedRound(
+        addClosedRound(swissDone().add('TopCutStarted', { size: 4 }), 3, 'topCut', SEMIS),
+        4,
+        'topCut',
+        [pairing(7, 1, P1, P2)],
+      );
+      expect(
+        validateNext(reduceLog(log), 'RoundPaired', topCut(5, [pairing(8, 1, P1, P2)])),
+      ).toMatchObject({ code: 'INVALID_PAIRINGS' });
+    });
+  });
+
+  describe('in a Top 8', () => {
+    const top8Started = () =>
+      addClosedRound(registeredLog(8, TWO_ROUNDS), 1, 'swiss', [
+        pairing(1, 1, P1, P2),
+        pairing(2, 2, P3, P4),
+        pairing(3, 3, P5, P6),
+        pairing(4, 4, P7, P8),
+      ]).add('TopCutStarted', { size: 8 });
+    // Quarterfinals: winners P1 (t1), P5 (t2), P2 (t3), P3 (t4).
+    const quartersDone = () =>
+      reduceLog(
+        addClosedRound(top8Started(), 2, 'topCut', [
+          pairing(5, 1, P1, P8),
+          pairing(6, 2, P5, P4),
+          pairing(7, 3, P2, P7),
+          pairing(8, 4, P3, P6),
+        ]),
+      );
+
+    it('accepts semifinals pairing the winners of tables 1–2 and 3–4', () => {
+      const semis = [pairing(9, 1, P1, P5), pairing(10, 2, P2, P3)];
+      expect(validateNext(quartersDone(), 'RoundPaired', topCut(3, semis))).toBeNull();
+    });
+
+    it('rejects semifinals pairing winners from the wrong tables', () => {
+      const semis = [pairing(9, 1, P1, P2), pairing(10, 2, P5, P3)];
+      expect(validateNext(quartersDone(), 'RoundPaired', topCut(3, semis))).toMatchObject({
+        code: 'INVALID_PAIRINGS',
+      });
+    });
   });
 
   it('rejects top cut pairings before TopCutStarted', () => {
@@ -749,6 +826,26 @@ describe('validate: ResultReported (topCut)', () => {
     expect(
       validateNext(reduceLog(semisOpen()), 'ResultReported', { matchId: matchId(5), result }),
     ).toMatchObject({ code: 'TOP_CUT_DRAW' });
+  });
+
+  it('rejects a 3-0 in a best of three top cut', () => {
+    const result: MatchResult = { winsA: 3, winsB: 0, draws: 0, kind: 'played' };
+    expect(
+      validateNext(reduceLog(semisOpen()), 'ResultReported', { matchId: matchId(5), result }),
+    ).toMatchObject({ code: 'RESULT_EXCEEDS_BEST_OF' });
+  });
+
+  it('accepts a 3-2 and rejects a 3-2-1 in a best of five top cut', () => {
+    const state = reduceLog(
+      swissDone().add('TopCutStarted', { size: 4, bestOf: 5 }).add('RoundPaired', topCut(3, SEMIS)),
+    );
+    const report = (result: MatchResult) =>
+      validateNext(state, 'ResultReported', { matchId: matchId(5), result });
+
+    expect(report({ winsA: 3, winsB: 2, draws: 0, kind: 'played' })).toBeNull();
+    expect(report({ winsA: 3, winsB: 2, draws: 1, kind: 'played' })).toMatchObject({
+      code: 'RESULT_EXCEEDS_BEST_OF',
+    });
   });
 
   it('still accepts a draw in a swiss round', () => {

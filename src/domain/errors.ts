@@ -20,7 +20,8 @@ export type DomainErrorCode =
   | 'INVALID_ROLLBACK_TARGET'
   | 'INVALID_DETAILS'
   | 'INVALID_SWAP'
-  | 'NO_OPEN_ROUND';
+  | 'NO_OPEN_ROUND'
+  | 'RESULT_EXCEEDS_BEST_OF';
 
 export type DomainError = { code: DomainErrorCode; message: string; seq?: number };
 

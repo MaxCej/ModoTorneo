@@ -96,7 +96,7 @@ describe('HistoryPanel', () => {
       .add('ResultReported', { matchId: matchId(2), result: draw })
       .add('RoundClosed', { round: 1 })
       .add('PlayerDropped', { playerId: P5 })
-      .add('TopCutStarted', { size: 4 })
+      .add('TopCutStarted', { size: 4, bestOf: 5 })
       .add('RolledBack', { toSeq: 17 })
       .add('TournamentFinished', {});
     renderPanel(log.events);
@@ -104,7 +104,7 @@ describe('HistoryPanel', () => {
     expect(bodyRows().map((row) => rowCells(row)[1])).toEqual([
       'Tournament finished',
       'Rolled back to #17',
-      'Top 4 startedUndone',
+      'Top 4 started, best of 5Undone',
       'Player 5 dropped',
       'Round 1 closed',
       'Round 1: Player 2 1-1-1 Player 4',
@@ -123,6 +123,12 @@ describe('HistoryPanel', () => {
       'Player 1 registered',
       'Tournament created',
     ]);
+  });
+
+  it('labels a TopCutStarted without bestOf as best of 3', () => {
+    const log = closedRound().add('TopCutStarted', { size: 4 });
+    renderPanel(log.events);
+    expect(rowCells(bodyRows()[0])[1]).toBe('Top 4 started, best of 3');
   });
 
   it('dims voided rows with an "Undone" badge and no rollback button', () => {

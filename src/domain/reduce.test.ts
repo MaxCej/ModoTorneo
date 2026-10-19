@@ -417,7 +417,16 @@ describe('reduce: top cut and finish', () => {
 
   it('records the chosen size and moves status to topCut on TopCutStarted', () => {
     const { events } = swissDone().add('TopCutStarted', { size: 4 });
-    expect(reduce(events, TOURNAMENT_ID)).toMatchObject({ status: 'topCut', topCut: 4 });
+    expect(reduce(events, TOURNAMENT_ID)).toMatchObject({
+      status: 'topCut',
+      topCut: 4,
+      topCutBestOf: 3,
+    });
+  });
+
+  it('records bestOf 5 from TopCutStarted', () => {
+    const { events } = swissDone().add('TopCutStarted', { size: 4, bestOf: 5 });
+    expect(reduce(events, TOURNAMENT_ID).topCutBestOf).toBe(5);
   });
 
   it('adds top cut rounds with stage topCut and finishes the tournament', () => {
@@ -448,7 +457,11 @@ describe('reduce: top cut and finish', () => {
   it('throws TOP_CUT_DRAW on replay of a drawn top cut match', () => {
     const { events } = swissDone()
       .add('TopCutStarted', { size: 4 })
-      .add('RoundPaired', { round: 3, stage: 'topCut', pairings: [pairing(5, 1, P1, P4)] })
+      .add('RoundPaired', {
+        round: 3,
+        stage: 'topCut',
+        pairings: [pairing(5, 1, P1, P4), pairing(6, 2, P2, P3)],
+      })
       .add('ResultReported', {
         matchId: matchId(5),
         result: { winsA: 0, winsB: 0, draws: 0, kind: 'intentionalDraw' },

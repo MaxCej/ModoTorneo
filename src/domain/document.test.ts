@@ -67,6 +67,41 @@ describe('parseTournamentDocument', () => {
     ]);
   });
 
+  it('reads a TopCutStarted without bestOf as best of three', () => {
+    expect(parsedFixture().state.topCutBestOf).toBe(3);
+  });
+
+  it('keeps bestOf 5 through a JSON round trip', () => {
+    const json = fixtureCopy();
+    const started = json.events.find((e) => e.type === 'TopCutStarted');
+    if (started === undefined) {
+      throw new Error('fixture has no TopCutStarted');
+    }
+    started.payload = { size: 4, bestOf: 5 };
+    const first = parseTournamentDocument(json);
+    if (!first.ok) {
+      throw new Error(`expected ok, got ${JSON.stringify(first.error)}`);
+    }
+    const second = parseTournamentDocument(JSON.parse(JSON.stringify(first.value.doc)));
+
+    expect(first.value.state.topCutBestOf).toBe(5);
+    expect(second).toMatchObject({ ok: true, value: { state: { topCutBestOf: 5 } } });
+  });
+
+  it('returns INVALID_SCHEMA for bestOf 4', () => {
+    const json = fixtureCopy();
+    const started = json.events.find((e) => e.type === 'TopCutStarted');
+    if (started === undefined) {
+      throw new Error('fixture has no TopCutStarted');
+    }
+    started.payload = { size: 4, bestOf: 4 };
+
+    expect(parseTournamentDocument(json)).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_SCHEMA' },
+    });
+  });
+
   it('keeps the corrected result, voids the redone pairing and stores the bye result', () => {
     const { state } = parsedFixture();
     const matches = state.rounds.flatMap((r) => r.matches);

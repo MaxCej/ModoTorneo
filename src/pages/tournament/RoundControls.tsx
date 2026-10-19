@@ -4,16 +4,21 @@ import { useTranslation } from 'react-i18next';
 import {
   activePlayerCount,
   pairSwissRound,
+  pairTopCutRound,
   redoPairingCommands,
   resolvedSwissRounds,
+  startTopCutCommands,
+  type BestOf,
   type Command,
   type DomainError,
   type Result,
   type TournamentDocument,
+  type TopCutSize,
   type TournamentState,
 } from '../../domain';
 import { FinishTournamentModal } from './FinishTournamentModal';
 import { RedoPairingsModal } from './RedoPairingsModal';
+import { StartTopCutModal } from './StartTopCutModal';
 
 type Props = {
   doc: TournamentDocument;
@@ -29,6 +34,7 @@ export function RoundControls({ doc, state, onDispatch, onDispatchAll, onPaired 
   const { t } = useTranslation();
   const [pairError, setPairError] = useState<DomainError | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [startingTopCut, setStartingTopCut] = useState(false);
   // The counts shown in the redo modal, taken when it opens.
   const [redoing, setRedoing] = useState<{ results: number; swaps: number } | null>(null);
 
@@ -36,13 +42,26 @@ export function RoundControls({ doc, state, onDispatch, onDispatchAll, onPaired 
   const openRound = current !== undefined && !current.closed ? current : null;
   const next = state.rounds.length + 1;
   const swissRounds = resolvedSwissRounds(state);
-  const enoughPlayers = activePlayerCount(state) >= 2;
-  const canPair =
+  const active = activePlayerCount(state);
+  const enoughPlayers = active >= 2;
+  const lastTopCutRound = state.rounds.filter((round) => round.stage === 'topCut').at(-1);
+  const canPairSwiss =
     (state.status === 'setup' || state.status === 'running') &&
     openRound === null &&
     (swissRounds === null || next <= swissRounds);
+  // The top cut ends with the final, its only one-match round.
+  const canPairTopCut =
+    state.status === 'topCut' &&
+    openRound === null &&
+    (lastTopCutRound === undefined || lastTopCutRound.matches.length > 1);
+  const canPair = canPairSwiss || canPairTopCut;
   const canRedo = openRound !== null && openRound.stage === 'swiss';
-  const canFinish = state.status === 'running' && openRound === null && state.rounds.length > 0;
+  const canStartTopCut =
+    state.status === 'running' && openRound === null && state.rounds.length > 0 && active >= 4;
+  const canFinish =
+    (state.status === 'running' || state.status === 'topCut') &&
+    openRound === null &&
+    state.rounds.length > 0;
 
   // Byes carry an implicit result, so only played matches count.
   const played = openRound?.matches.filter((match) => match.playerB !== null) ?? [];
@@ -50,7 +69,7 @@ export function RoundControls({ doc, state, onDispatch, onDispatchAll, onPaired 
 
   function pair() {
     setPairError(null);
-    const paired = pairSwissRound(state);
+    const paired = canPairTopCut ? pairTopCutRound(state) : pairSwissRound(state);
     if (!paired.ok) {
       setPairError(paired.error);
       return;
@@ -80,6 +99,21 @@ export function RoundControls({ doc, state, onDispatch, onDispatchAll, onPaired 
     }
     if (onDispatchAll(plan.value.commands).ok) {
       onPaired(plan.value.round);
+    }
+  }
+
+  /** Builds both commands on the latest document, then appends them in one save. */
+  function startTopCut(size: TopCutSize, bestOf: BestOf) {
+    setStartingTopCut(false);
+    setPairError(null);
+    const commands = startTopCutCommands(doc, size, bestOf);
+    if (!commands.ok) {
+      setPairError(commands.error);
+      return;
+    }
+    const [, paired] = commands.value;
+    if (onDispatchAll(commands.value).ok && paired.type === 'RoundPaired') {
+      onPaired(paired.payload.round);
     }
   }
 
@@ -122,6 +156,11 @@ export function RoundControls({ doc, state, onDispatch, onDispatchAll, onPaired 
             {t('tournament.rounds.redo')}
           </Button>
         )}
+        {canStartTopCut && (
+          <Button variant="light" onClick={() => setStartingTopCut(true)}>
+            {t('tournament.topCut.start')}
+          </Button>
+        )}
         {canFinish && (
           <Button variant="light" onClick={() => setFinishing(true)}>
             {t('tournament.rounds.finish')}
@@ -143,6 +182,13 @@ export function RoundControls({ doc, state, onDispatch, onDispatchAll, onPaired 
           voidedSwaps={redoing.swaps}
           onCancel={() => setRedoing(null)}
           onConfirm={redo}
+        />
+      )}
+      {startingTopCut && (
+        <StartTopCutModal
+          state={state}
+          onCancel={() => setStartingTopCut(false)}
+          onConfirm={startTopCut}
         />
       )}
       {finishing && (

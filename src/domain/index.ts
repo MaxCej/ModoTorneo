@@ -43,6 +43,7 @@ export { err, ok, type Result } from './result';
 export { lastClosedSwissRound, PERCENTAGE_FLOOR, standings, type Standing } from './standings';
 export {
   activePlayerCount,
+  matchWinner,
   type Match,
   type PlayerEntry,
   type Round,
@@ -55,3 +56,22 @@ export {
   recommendedSwissRounds,
   recommendedSwissRoundsTop8,
 } from './swissRounds';
+export {
+  bracketOrder,
+  defaultTopCutSize,
+  pairTopCutRound,
+  seedPreview,
+  startTopCutCommands,
+  topCutBracket,
+  topCutPlacings,
+  topCutRoundName,
+  topCutSeeds,
+  type Bracket,
+  type BracketMatch,
+  type BracketPlayer,
+  type BracketRound,
+  type Placing,
+  type SeedCandidate,
+  type SeedPreview,
+  type TopCutRoundName,
+} from './topCut';

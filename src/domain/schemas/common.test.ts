@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BestOfSchema,
   FormatSchema,
   IsoDateSchema,
   IsoDateTimeSchema,
@@ -61,5 +62,15 @@ describe('TopCutSizeSchema', () => {
 
   it.each([0, 2, 64, '4'])('rejects %s', (size) => {
     expect(TopCutSizeSchema.safeParse(size).success).toBe(false);
+  });
+});
+
+describe('BestOfSchema', () => {
+  it.each([3, 5])('accepts %i', (bestOf) => {
+    expect(BestOfSchema.safeParse(bestOf).success).toBe(true);
+  });
+
+  it.each([1, 4, 7, '3'])('rejects %s', (bestOf) => {
+    expect(BestOfSchema.safeParse(bestOf).success).toBe(false);
   });
 });

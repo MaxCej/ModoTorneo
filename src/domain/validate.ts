@@ -10,8 +10,8 @@ import type {
   TournamentEvent,
   TournamentFinished,
 } from './schemas/events';
-import { matchOutcome } from './schemas/matchResult';
-import { activePlayerCount, type TournamentState } from './state';
+import { fitsBestOf, matchOutcome } from './schemas/matchResult';
+import { activePlayerCount, matchWinner, type TournamentState } from './state';
 import { recommendedSwissRounds } from './swissRounds';
 
 /**
@@ -203,7 +203,49 @@ function validateTopCutPairing(state: TournamentState, event: RoundPaired): Doma
   if (event.payload.pairings.some((p) => p.playerB === null)) {
     return invalidPairings('Top cut rounds have no byes', event);
   }
-  return validatePairingStructure(state, event);
+  return validatePairingStructure(state, event) ?? validateBracket(state, event);
+}
+
+/**
+ * The first top cut round has `size / 2` matches. A later round has half the matches of the
+ * previous top cut round, and table `k` holds the winners of its tables `2k - 1` and `2k`, in
+ * either order. Tables run `1..n`. Seeding is not checked: `pairTopCutRound` writes it.
+ */
+function validateBracket(state: TournamentState, event: RoundPaired): DomainError | null {
+  const { pairings } = event.payload;
+  const previous = state.rounds.filter((r) => r.stage === 'topCut').at(-1);
+  if (previous?.matches.length === 1) {
+    return invalidPairings('The final has been played; the top cut has no more rounds', event);
+  }
+  const expected = previous === undefined ? (state.topCut ?? 0) / 2 : previous.matches.length / 2;
+  if (pairings.length !== expected) {
+    return invalidPairings(
+      `This top cut round needs ${expected} matches, got ${pairings.length}`,
+      event,
+    );
+  }
+  const badTable = pairings.find((p) => p.table < 1 || p.table > expected);
+  if (badTable !== undefined) {
+    return invalidPairings(`Top cut tables run 1 to ${expected}, got ${badTable.table}`, event);
+  }
+  if (previous === undefined) {
+    return null;
+  }
+  const winnerAt = (table: number) => {
+    const match = previous.matches.find((m) => m.table === table);
+    return match === undefined ? null : matchWinner(match);
+  };
+  for (const pairing of pairings) {
+    const winners = [winnerAt(2 * pairing.table - 1), winnerAt(2 * pairing.table)];
+    const players = [pairing.playerA, pairing.playerB];
+    if (!winners.every((winner) => winner !== null && players.includes(winner))) {
+      return invalidPairings(
+        `Table ${pairing.table} must pair the winners of tables ${2 * pairing.table - 1} and ${2 * pairing.table} of round ${previous.number}`,
+        event,
+      );
+    }
+  }
+  return null;
 }
 
 function validateTopCutStarted(state: TournamentState, event: TopCutStarted): DomainError | null {
@@ -387,6 +429,14 @@ function validateResult(state: TournamentState, event: ResultReported): DomainEr
       return domainError(
         'TOP_CUT_DRAW',
         `A top cut match needs a winner, got ${outcome}`,
+        event.seq,
+      );
+    }
+    const bestOf = state.topCutBestOf ?? 3;
+    if (!fitsBestOf(event.payload.result, bestOf)) {
+      return domainError(
+        'RESULT_EXCEEDS_BEST_OF',
+        `The result does not fit a best of ${bestOf} match`,
         event.seq,
       );
     }

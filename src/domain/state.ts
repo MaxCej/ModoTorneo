@@ -1,6 +1,6 @@
-import type { Format, IsoDate, TopCutSize, Uuid } from './schemas/common';
+import type { BestOf, Format, IsoDate, TopCutSize, Uuid } from './schemas/common';
 import type { Pairing, TournamentCreated } from './schemas/events';
-import type { MatchResult } from './schemas/matchResult';
+import { matchOutcome, type MatchResult } from './schemas/matchResult';
 
 export type TournamentStatus = 'setup' | 'running' | 'topCut' | 'finished';
 
@@ -30,6 +30,7 @@ export type TournamentState = {
   format: Format;
   swissRounds: number | null; // null until fixed by the first swiss RoundPaired, or set by the organizer
   topCut: TopCutSize | null; // null until TopCutStarted
+  topCutBestOf: BestOf | null; // null until TopCutStarted; missing bestOf = 3
   status: TournamentStatus;
   players: Record<Uuid, PlayerEntry>;
   rounds: Round[];
@@ -43,12 +44,22 @@ export function activePlayerCount(state: TournamentState): number {
   return Object.values(state.players).filter((player) => !player.dropped).length;
 }
 
+/** The winner of a reported match with a winner, otherwise `null` (unreported, draw or bye). */
+export function matchWinner(match: Match): Uuid | null {
+  if (match.result === null || match.playerB === null) {
+    return null;
+  }
+  const outcome = matchOutcome(match.result);
+  return outcome === 'A' ? match.playerA : outcome === 'B' ? match.playerB : null;
+}
+
 /** Builds the initial state from the log's first event. */
 export function initialState(tournamentId: Uuid, event: TournamentCreated): TournamentState {
   return {
     id: tournamentId,
     ...event.payload,
     topCut: null,
+    topCutBestOf: null,
     status: 'setup',
     players: {},
     rounds: [],

@@ -11,6 +11,7 @@ describe('initialState', () => {
       id: TOURNAMENT_ID,
       ...CREATED_PAYLOAD,
       topCut: null,
+      topCutBestOf: null,
       status: 'setup',
       players: {},
       rounds: [],

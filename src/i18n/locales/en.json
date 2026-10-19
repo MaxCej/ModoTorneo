@@ -130,6 +130,12 @@
         "win21": "2-1",
         "loss12": "1-2",
         "loss02": "0-2",
+        "win30": "3-0",
+        "win31": "3-1",
+        "win32": "3-2",
+        "loss23": "2-3",
+        "loss13": "1-3",
+        "loss03": "0-3",
         "draw111": "1-1-1",
         "intentionalDraw": "ID",
         "unplayed": "Unplayed"
@@ -141,6 +147,7 @@
       "customSave": "Save",
       "customCancel": "Cancel",
       "customInvalid": "Enter a best-of-three result: at most 2 wins each and 3 games in total.",
+      "customInvalidTopCut": "Enter a best-of-{{bestOf}} result with a winner: at most {{wins}} wins each and {{bestOf}} games in total.",
       "close": "Close round {{round}}",
       "progress": "{{reported}} of {{total}} results",
       "redo": "Redo pairings",
@@ -183,6 +190,48 @@
         "second": "Second player",
         "confirm": "Swap",
         "cancel": "Cancel"
+      }
+    },
+    "topCut": {
+      "start": "Start top cut",
+      "tab": "Top cut",
+      "heading": "Top {{size}} · Best of {{bestOf}}",
+      "empty": "Pair the first top cut round to see the bracket.",
+      "bracketPlayer": "({{seed}}) {{name}}",
+      "notReported": "Not reported",
+      "placingsLabel": "Top cut placings",
+      "place": "Place",
+      "player": "Player",
+      "seed": "Seed",
+      "placeRange": "{{from}}–{{to}}",
+      "ordinal_ordinal_one": "{{count}}st",
+      "ordinal_ordinal_two": "{{count}}nd",
+      "ordinal_ordinal_few": "{{count}}rd",
+      "ordinal_ordinal_other": "{{count}}th",
+      "rounds": {
+        "final": "Final",
+        "semifinals": "Semifinals",
+        "quarterfinals": "Quarterfinals",
+        "roundOf16": "Round of 16",
+        "roundOf32": "Round of 32"
+      },
+      "startModal": {
+        "title": "Start top cut",
+        "early": "{{played}} of {{total}} swiss rounds played.",
+        "size": "Size",
+        "sizeOption": "Top {{size}}",
+        "notRecommended": "Fewer than 8 players: a top cut is not recommended.",
+        "bestOf": "Best of",
+        "bestOfOption": "Best of {{bestOf}}",
+        "seeds": "Seeds",
+        "seed": "Seed",
+        "player": "Player",
+        "points": "Points",
+        "tied": "Tied",
+        "cutLineTie": "{{names}} are tied at the cut line. A random draw decides who makes the cut.",
+        "otherTies": "Tied players are seeded in random order.",
+        "cancel": "Cancel",
+        "confirm": "Start top cut"
       }
     },
     "standings": {
@@ -266,7 +315,7 @@
         "PlayersSwapped": "Round {{round}}: {{a}} and {{b}} swapped",
         "ResultReported": "Round {{round}}: {{a}} {{score}} {{b}}",
         "RoundClosed": "Round {{round}} closed",
-        "TopCutStarted": "Top {{size}} started",
+        "TopCutStarted": "Top {{size}} started, best of {{bestOf}}",
         "TournamentFinished": "Tournament finished",
         "RolledBack": "Rolled back to #{{seq}}"
       }

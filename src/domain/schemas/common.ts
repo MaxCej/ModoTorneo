@@ -27,3 +27,7 @@ export type Format = z.infer<typeof FormatSchema>;
 /** Chosen when the top cut starts, never at creation. */
 export const TopCutSizeSchema = z.union([z.literal(4), z.literal(8), z.literal(16), z.literal(32)]);
 export type TopCutSize = z.infer<typeof TopCutSizeSchema>;
+
+/** Games per top cut match. Swiss matches are always best of three. */
+export const BestOfSchema = z.union([z.literal(3), z.literal(5)]);
+export type BestOf = z.infer<typeof BestOfSchema>;
