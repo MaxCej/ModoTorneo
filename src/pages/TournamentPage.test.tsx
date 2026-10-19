@@ -514,3 +514,33 @@ describe('TournamentPage rollback', () => {
     expect(stored.ok && stored.value.doc.events).toHaveLength(15);
   });
 });
+
+describe('TournamentPage redo pairings', () => {
+  it('re-pairs the open round in one save and shows it with no results', async () => {
+    const doc = runningDoc(4);
+    await backend.saveTournament(doc, null);
+    renderPage();
+    const table1 = () => within(screen.getByRole('group', { name: 'Table 1' }));
+    await screen.findByRole('group', { name: 'Table 1' });
+    fireEvent.click(table1().getByRole('button', { name: '2-0' }));
+    expect(await screen.findByText('1 of 2 results')).toBeInTheDocument();
+    await idle();
+    const save = vi.spyOn(backend, 'saveTournament');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Redo pairings' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Redo pairings for round 1?' }));
+    expect(dialog.getByText('This undoes 1 result and 0 swaps of this round.')).toBeInTheDocument();
+    fireEvent.click(dialog.getByRole('button', { name: 'Redo' }));
+
+    expect(screen.getByRole('tab', { name: 'Round 1' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('0 of 2 results')).toBeInTheDocument();
+    await idle();
+    expect(save).toHaveBeenCalledTimes(1);
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    expect(stored.ok && stored.value.doc.events.slice(-2).map((e) => e.type)).toEqual([
+      'RolledBack',
+      'RoundPaired',
+    ]);
+    expect(stored.ok && stored.value.state.rounds).toHaveLength(1);
+  });
+});

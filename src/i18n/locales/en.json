@@ -143,6 +143,18 @@
       "customInvalid": "Enter a best-of-three result: at most 2 wins each and 3 games in total.",
       "close": "Close round {{round}}",
       "progress": "{{reported}} of {{total}} results",
+      "redo": "Redo pairings",
+      "redoModal": {
+        "title": "Redo pairings for round {{round}}?",
+        "undoes": "This undoes {{results}} and {{swaps}} of this round.",
+        "results_one": "{{count}} result",
+        "results_other": "{{count}} results",
+        "swaps_one": "{{count}} swap",
+        "swaps_other": "{{count}} swaps",
+        "kept": "Drops, registrations and detail changes made during the round are kept.",
+        "cancel": "Cancel",
+        "confirm": "Redo"
+      },
       "finish": "Finish tournament",
       "finishModal": {
         "title": "Finish tournament",

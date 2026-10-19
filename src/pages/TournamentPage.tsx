@@ -42,6 +42,7 @@ export function TournamentPage() {
   const { t } = useTranslation();
   const { id } = useParams();
   const status = useTournamentStore((s) => s.status);
+  const doc = useTournamentStore((s) => s.doc);
   const state = useTournamentStore((s) => s.state);
   const loadError = useTournamentStore((s) => s.loadError);
   const commandError = useTournamentStore((s) => s.commandError);
@@ -74,8 +75,15 @@ export function TournamentPage() {
     };
   }
 
+  function dispatchAllFrom(panel: Panel) {
+    return (commands: [Command, ...Command[]]) => {
+      setErrorPanel(panel);
+      return useTournamentStore.getState().dispatchAll(commands);
+    };
+  }
+
   // `id` guards against showing the previous tournament while the next one loads.
-  const loaded = status === 'ready' && state !== null && state.id === id;
+  const loaded = status === 'ready' && doc !== null && state !== null && state.id === id;
 
   if (status === 'error' && loadError?.code === 'NOT_FOUND') {
     return (
@@ -119,8 +127,10 @@ export function TournamentPage() {
             {commandError && errorPanel === 'details' && <CommandErrorAlert />}
 
             <RoundControls
+              doc={doc}
               state={state}
               onDispatch={dispatchFrom('rounds')}
+              onDispatchAll={dispatchAllFrom('rounds')}
               onPaired={(round) => selectTab(roundTab(round))}
             />
             {commandError && errorPanel === 'rounds' && <CommandErrorAlert />}
