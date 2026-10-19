@@ -1,17 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { PLAYERS, TOURNAMENT_ID, swissHistory, type LogBuilder } from './fixtures/builders';
+import { executeAll } from './commands';
+import {
+  PLAYERS,
+  TOURNAMENT_ID,
+  WIN_A,
+  swissHistory,
+  uuid,
+  type LogBuilder,
+} from './fixtures/builders';
 import { reduce } from './reduce';
+import type { TournamentDocument } from './schemas/document';
+import type { RoundPairedPayload } from './schemas/events';
 import type { MatchResult } from './schemas/matchResult';
 import {
   bracketOrder,
   defaultTopCutSize,
+  pairTopCutRound,
   seedPreview,
+  startTopCutCommands,
   topCutRoundName,
   topCutSeeds,
 } from './topCut';
 
 const [P1, P2, P3, P4, P5, P6, P7, P8] = PLAYERS;
 
+const WIN_B: MatchResult = { winsA: 1, winsB: 2, draws: 0, kind: 'played' };
 const ID: MatchResult = { winsA: 0, winsB: 0, draws: 0, kind: 'intentionalDraw' };
 
 const stateOf = (log: LogBuilder) => reduce(log.events, TOURNAMENT_ID);
@@ -156,5 +169,163 @@ describe('topCutSeeds', () => {
 
     expect(seeds).not.toContain(P1);
     expect(seeds).toEqual([P3, P5, P7, P2]);
+  });
+});
+
+/** Ids for every test deps, so match ids never repeat within a log. */
+let nextId = 0;
+
+/** Deterministic deps: ids `uuid(5000 + n)`, fixed clock, `random` keeps tied players in order. */
+function testDeps(random = () => 0.999) {
+  return {
+    now: () => '2026-10-11T20:00:00.000Z',
+    newId: () => uuid(5000 + ++nextId),
+    random,
+  };
+}
+
+const docOf = (log: LogBuilder): TournamentDocument => ({
+  schemaVersion: 1,
+  id: TOURNAMENT_ID,
+  events: log.events,
+});
+
+/** Pairs `payload`, reports `results` in table order (default WIN_A) and closes the round. */
+function playRound(log: LogBuilder, payload: RoundPairedPayload, results: MatchResult[] = []) {
+  log.add('RoundPaired', payload);
+  for (const [i, p] of payload.pairings.entries()) {
+    log.add('ResultReported', { matchId: p.matchId, result: results[i] ?? WIN_A });
+  }
+  return log.add('RoundClosed', { round: payload.round });
+}
+
+function paired(log: LogBuilder, deps = testDeps()): RoundPairedPayload {
+  const result = pairTopCutRound(stateOf(log), deps);
+  if (!result.ok) {
+    throw new Error(`expected ok, got ${JSON.stringify(result.error)}`);
+  }
+  return result.value;
+}
+
+const players = (payload: RoundPairedPayload) =>
+  payload.pairings.map((p) => [p.table, p.playerA, p.playerB]);
+
+// fourWinners seeds, with ties kept in order: P1, P3, P5, P7, P2, P4, P6, P8 (seeds 1–8).
+describe('pairTopCutRound', () => {
+  const top8 = () => fourWinners().add('TopCutStarted', { size: 8 });
+
+  it('pairs a Top 8 first round 1v8, 4v5, 2v7, 3v6 with the better seed as playerA', () => {
+    const first = paired(top8());
+
+    expect(first.round).toBe(2);
+    expect(first.stage).toBe('topCut');
+    expect(players(first)).toEqual([
+      [1, P1, P8],
+      [2, P7, P2],
+      [3, P3, P6],
+      [4, P5, P4],
+    ]);
+  });
+
+  it('pairs the winners of tables 1–2 and 3–4, better seed as playerA', () => {
+    // P8 (seed 8) beats P1 and P2 (seed 5) beats P7: table 1 of the semifinals is P2 v P8.
+    const log = top8();
+    playRound(log, paired(log), [WIN_B, WIN_B, WIN_A, WIN_A]);
+    const semis = paired(log);
+
+    expect(semis.round).toBe(3);
+    expect(players(semis)).toEqual([
+      [1, P2, P8],
+      [2, P3, P5],
+    ]);
+  });
+
+  it('pairs the final from the semifinal winners and nothing after it', () => {
+    const log = top8();
+    playRound(log, paired(log));
+    playRound(log, paired(log), [WIN_A, WIN_B]);
+    const final = paired(log);
+
+    // Semifinal winners: P1 (seed 1) and P5 (seed 3).
+    expect(players(final)).toEqual([[1, P1, P5]]);
+    playRound(log, final);
+    expect(pairTopCutRound(stateOf(log), testDeps())).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_PAIRINGS' },
+    });
+  });
+
+  it('every payload passes validate', () => {
+    const log = top8();
+    for (let round = 0; round < 3; round++) {
+      const payload = paired(log);
+      const result = executeAll(docOf(log), [{ type: 'RoundPaired', payload }], testDeps());
+      expect(result.ok).toBe(true);
+      playRound(log, payload);
+    }
+  });
+
+  it('refuses while a round is open', () => {
+    const log = top8();
+    log.add('RoundPaired', paired(log));
+    expect(pairTopCutRound(stateOf(log), testDeps())).toMatchObject({
+      ok: false,
+      error: { code: 'ROUND_STILL_OPEN' },
+    });
+  });
+
+  it('refuses outside the top cut', () => {
+    expect(pairTopCutRound(stateOf(fourWinners()), testDeps())).toMatchObject({
+      ok: false,
+      error: { code: 'WRONG_STATUS' },
+    });
+  });
+
+  it('pairs the first round again after a rollback to TopCutStarted', () => {
+    const log = top8();
+    const startedSeq = log.events.length;
+    playRound(log, paired(log));
+    log.add('RolledBack', { toSeq: startedSeq });
+
+    expect(stateOf(log).rounds.filter((r) => r.stage === 'topCut')).toEqual([]);
+    expect(players(paired(log))).toEqual([
+      [1, P1, P8],
+      [2, P7, P2],
+      [3, P3, P6],
+      [4, P5, P4],
+    ]);
+  });
+});
+
+describe('startTopCutCommands', () => {
+  it('returns TopCutStarted and the first top cut RoundPaired, both valid', () => {
+    const doc = docOf(fourWinners());
+    const result = startTopCutCommands(doc, 4, 5, testDeps());
+    if (!result.ok) {
+      throw new Error(`expected ok, got ${JSON.stringify(result.error)}`);
+    }
+    const [start, pairing] = result.value;
+
+    expect(start).toEqual({ type: 'TopCutStarted', payload: { size: 4, bestOf: 5 } });
+    expect(pairing).toMatchObject({ type: 'RoundPaired', payload: { round: 2, stage: 'topCut' } });
+    const applied = executeAll(doc, result.value, testDeps());
+    expect(applied).toMatchObject({
+      ok: true,
+      value: { state: { status: 'topCut', topCut: 4, topCutBestOf: 5 } },
+    });
+  });
+
+  it('returns the validation error for a size above the active players', () => {
+    expect(startTopCutCommands(docOf(fourWinners()), 16, 3, testDeps())).toMatchObject({
+      ok: false,
+      error: { code: 'WRONG_STATUS' },
+    });
+  });
+
+  it('leaves the document unchanged', () => {
+    const doc = docOf(fourWinners());
+    const before = JSON.stringify(doc);
+    startTopCutCommands(doc, 8, 3, testDeps());
+    expect(JSON.stringify(doc)).toBe(before);
   });
 });
