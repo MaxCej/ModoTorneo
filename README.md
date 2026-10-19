@@ -135,6 +135,21 @@ rounds only: the open round's reported results and top cut rounds never change t
 - **Ties:** players equal on every tiebreaker share the rank (1, 2, 2, 4) and are listed by
   name. Dropped players and late entries are ranked like everyone else.
 
+## Restore, rollback and redo pairings
+
+- **Restore:** every change is saved as it happens. Opening a tournament from the list replays
+  its event log, so it continues exactly where it stopped. There is no separate restore step.
+- **Rollback:** "Roll back to here" on a History row appends one `RolledBack` event. Every event
+  after that row is voided: it stays in the log, dimmed with an "Undone" badge, but no longer
+  counts. Nothing is ever deleted, and an undone event cannot be restored. Rolling back past
+  "Close round N" reopens that round, and past "Finish tournament" returns it to running.
+- **Redo pairings:** while a swiss round is open, "Redo pairings" pairs the same round again. It
+  voids the round's results and swaps, and keeps the drops, registrations and detail changes
+  made during the round (they are appended again after the rollback). So a late arrival is
+  paired and a dropped player is not. The rollback, the carried events and the new pairing are
+  saved together: if the pairing fails, nothing changes. To redo a closed round, roll back past
+  "Close round N" first.
+
 ## Screens
 
 Every page renders inside one app shell with navigation (Tournaments, Data). Pages are loaded
@@ -148,12 +163,16 @@ lazily, one chunk each.
   - **Details:** inline edit of the fields the current status allows, and a "Recommended rounds"
     table with the row for the current player count highlighted.
   - **Round controls:** "Pair round N" (random round 1, then by match points), "Close round N"
-    once every result is in, and "Finish tournament" (with confirmation) after any closed round.
-  - **Tabs:** "Players" (registration), "Standings", and one tab per round. The open round opens
-    by default.
+    once every result is in, "Redo pairings" (with confirmation) while a swiss round is open, and
+    "Finish tournament" (with confirmation) after any closed round.
+  - **Tabs:** "Players" (registration), "Standings", one tab per round, and "History". The open
+    round opens by default.
   - **Standings tab:** rank, player, MP, W-L-D, OMW%, GW% and OGW% (2 decimals), with a
     "Dropped" badge. "After round" picks any closed swiss round (the last one by default).
     Before round 1 is closed it says so.
+  - **History tab:** every event, newest first, with its number, a label ("Round 2: Ana 2-1
+    Ben") and its time. Undone events are dimmed. "Roll back to here" opens a confirmation with
+    the count of undone events per type and the status and round after the rollback.
   - **Round tab:** one row per match with one-click results (2-0, 2-1, 1-2, 0-2, 1-1-1, ID,
     Unplayed) or a custom best-of-three score, always from the first player's side. A result
     can be changed until the round is closed. Each player shows points and W-L-D from earlier
@@ -269,7 +288,8 @@ The roadmap and design decisions live in the specs under `specs/`.
 
 A full swiss event runs in the browser: registration (registry players and guests, late entries,
 drops), swiss pairings, result entry, swaps, standings with MTR tiebreakers and finishing, all
-autosaved to IndexedDB. Restore, rollback and redo pairings are next.
+autosaved to IndexedDB. The History tab rolls back to any earlier event, and "Redo pairings"
+re-pairs the open swiss round. Top cut is next.
 
 ## License
 
