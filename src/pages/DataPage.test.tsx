@@ -1,14 +1,17 @@
 import { MantineProvider } from '@mantine/core';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TournamentDocument } from '../domain';
 import fixture from '../domain/fixtures/top4-8players.json';
 import {
   DexieBackend,
   downloadJson,
+  GitHubBackend,
+  writeSettings,
   type PersistenceStatus,
   type StorageBackend,
 } from '../storage';
+import { FakeGitHub } from '../test/fakeGitHub';
 import { DataPage } from './DataPage';
 
 const mocks = vi.hoisted(() => ({
@@ -339,5 +342,101 @@ describe('DataPage delete errors', () => {
 
     await deleteRow();
     expect(await screen.findByText('No tournaments stored yet.')).toBeInTheDocument();
+  });
+});
+
+describe('DataPage storage line', () => {
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it('shows "Storage: this browser" and the persistence line with local storage', async () => {
+    renderPage();
+    expect(await screen.findByText('Persistent storage: granted')).toBeInTheDocument();
+    expect(screen.getByText('Storage: this browser')).toBeInTheDocument();
+  });
+});
+
+describe('DataPage with GitHub storage', () => {
+  const TOKEN = 'github_pat_data';
+  let fake: FakeGitHub;
+
+  beforeEach(() => {
+    fake = new FakeGitHub({ token: TOKEN });
+    writeSettings({ backend: 'github', owner: fake.owner, repo: fake.repo, token: TOKEN });
+    dbCount += 1;
+    mocks.backend = new GitHubBackend({
+      owner: fake.owner,
+      repo: fake.repo,
+      token: TOKEN,
+      fetch: fake.fetch,
+      dbName: `test-data-page-${dbCount}`,
+    });
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it('shows the GitHub status line and hides the persistence line', async () => {
+    renderPage();
+    expect(await screen.findByText('No tournaments stored yet.')).toBeInTheDocument();
+    expect(screen.getByText('Storage: GitHub (alice/mtg-data)')).toBeInTheDocument();
+    expect(screen.queryByText(/^Persistent storage/)).not.toBeInTheDocument();
+  });
+
+  it('shows the rejected-token alert with a link to Settings', async () => {
+    fake.token = 'rotated';
+    renderPage();
+    expect(
+      await screen.findByText('GitHub rejected the token. Check it on the Settings page.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Settings' })).toHaveAttribute(
+      'href',
+      '#/settings',
+    );
+  });
+
+  it('shows the GitHub text for UNAVAILABLE', async () => {
+    fake.rateLimited = true;
+    renderPage();
+    expect(await screen.findByText(/^Cannot reach GitHub: GitHub rate limit/)).toBeInTheDocument();
+  });
+
+  it('imports a dataset file as one file per tournament and players.json', async () => {
+    const other = { ...fixtureDoc(), id: '00000000-0000-4000-8000-00000000beef' };
+    const players = [
+      { id: '00000000-0000-4000-8000-000000000301', name: 'Ana', createdAt: fixture.events[0].at },
+      {
+        id: '00000000-0000-4000-8000-000000000302',
+        name: 'Bóris',
+        createdAt: fixture.events[0].at,
+      },
+    ];
+    const dataset = {
+      kind: 'modotorneo-dataset',
+      schemaVersion: 1,
+      exportedAt: '2026-10-12T10:00:00.000Z',
+      players,
+      tournaments: [fixtureDoc(), other],
+    };
+    const { container } = renderPage();
+    await screen.findByText('No tournaments stored yet.');
+    await pickFile(container, jsonFile(dataset));
+
+    expect(await screen.findByText('Added: 2')).toBeInTheDocument();
+    expect(fake.paths()).toEqual([
+      'players.json',
+      `tournaments/${other.id}.json`,
+      `tournaments/${fixture.id}.json`,
+    ]);
+    expect(JSON.parse(fake.getFile(`tournaments/${fixture.id}.json`)!)).toEqual(fixture);
+    const stored = JSON.parse(fake.getFile('players.json')!) as {
+      players: Array<{ name: string }>;
+    };
+    expect(stored.players.map((p) => p.name).sort()).toEqual(
+      expect.arrayContaining(['Ana', 'Bóris']),
+    );
+    expect(await screen.findAllByText('Friday Night Magic')).toHaveLength(2);
   });
 });

@@ -329,6 +329,11 @@
     "title": "Page not found",
     "backHome": "Back to home"
   },
+  "storage": {
+    "githubUnavailable": "Cannot reach GitHub: {{message}}",
+    "unauthorized": "GitHub rejected the token. Check it on the Settings page.",
+    "openSettings": "Open Settings"
+  },
   "settings": {
     "title": "Settings",
     "statusLocal": "Storage: this browser",
