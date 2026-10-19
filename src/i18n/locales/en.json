@@ -55,10 +55,13 @@
     "saved": "Saved",
     "commandError": "{{code}}: {{message}}",
     "closeNotice": "Close",
+    "notSaved": "Not saved",
+    "retrySave": "Retry save",
     "notices": {
       "conflict": "This tournament was changed in another tab. Your last change was not saved. The latest version has been loaded.",
       "notFound": "This tournament no longer exists. It may have been deleted in another tab.",
-      "saveFailed": "Could not save ({{code}}): {{message}}. The last saved version has been loaded."
+      "saveFailed": "Could not save ({{code}}): {{message}}. The last saved version has been loaded.",
+      "unsaved": "Not saved: {{message}}. Your changes are kept on this page."
     },
     "details": {
       "title": "Details",

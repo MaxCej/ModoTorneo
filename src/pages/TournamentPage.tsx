@@ -1,6 +1,7 @@
 import {
   Alert,
   Anchor,
+  Button,
   Center,
   Container,
   Group,
@@ -125,7 +126,11 @@ export function TournamentPage() {
             <Group justify="space-between" align="baseline">
               <Title order={1}>{state.name}</Title>
               <Text size="sm" c="dimmed" aria-live="polite">
-                {saving ? t('tournament.saving') : t('tournament.saved')}
+                {saving
+                  ? t('tournament.saving')
+                  : notice?.kind === 'unsaved'
+                    ? t('tournament.notSaved')
+                    : t('tournament.saved')}
               </Text>
             </Group>
 
@@ -200,6 +205,21 @@ export function TournamentPage() {
 
 function NoticeAlert({ notice }: { notice: SaveNotice }) {
   const { t } = useTranslation();
+  if (notice.kind === 'unsaved') {
+    // No close button: the kept document must be saved before anything else.
+    return (
+      <Alert color="yellow">
+        <Group justify="space-between">
+          <Text size="sm">
+            {t('tournament.notices.unsaved', { message: notice.error.message })}
+          </Text>
+          <Button size="xs" onClick={() => useTournamentStore.getState().retrySave()}>
+            {t('tournament.retrySave')}
+          </Button>
+        </Group>
+      </Alert>
+    );
+  }
   const message =
     notice.kind === 'saveFailed'
       ? t('tournament.notices.saveFailed', {
