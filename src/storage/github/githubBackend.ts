@@ -10,10 +10,13 @@ import {
   type TournamentDocument,
   type TournamentState,
   type Uuid,
+  parsePlayersFile,
+  type PlayersFile,
   UuidSchema,
 } from '../../domain';
 import { ModoTorneoDb, type GitHubSummaryRow } from '../db';
-import { compareSummaries, toSummary } from '../summary';
+import { parsePlayer } from '../dexieBackend';
+import { comparePlayers, compareSummaries, toSummary } from '../summary';
 import type {
   Revision,
   StorageBackend,
@@ -74,8 +77,20 @@ function invalidDocument(message: string, cause: DomainError): StorageError {
   return { code: 'INVALID_DOCUMENT', message: `${message}: ${cause.message}`, cause };
 }
 
-function notImplemented(): Promise<Result<never, StorageError>> {
-  return Promise.resolve(err({ code: 'UNAVAILABLE', message: 'Not implemented yet' }));
+export const PLAYERS_PATH = 'players.json';
+
+/** `players.json` content: players sorted by id, so diffs stay small. */
+export function playersFileText(players: readonly Player[]): string {
+  const file: PlayersFile = {
+    kind: 'modotorneo-players',
+    schemaVersion: 1,
+    players: [...players].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+  };
+  return `${JSON.stringify(file, null, 2)}\n`;
+}
+
+function invalidPlayers(cause: DomainError): StorageError {
+  return { code: 'INVALID_PLAYER', message: `${PLAYERS_PATH} is invalid: ${cause.message}`, cause };
 }
 
 /** Latest `at` among the events: the summary's `updatedAt`, computable from the file alone. */
@@ -273,12 +288,60 @@ export class GitHubBackend implements StorageBackend {
     return deleted;
   }
 
-  listPlayers(): Promise<Result<Player[], StorageError>> {
-    return notImplemented();
+  /** `players.json` and its SHA; a missing file is an empty list with SHA null. */
+  private async readPlayers(): Promise<
+    Result<{ players: Player[]; sha: string | null }, StorageError>
+  > {
+    const file = await this.client.readFile(PLAYERS_PATH);
+    if (!file.ok) {
+      return file.error.code === 'NOT_FOUND' ? ok({ players: [], sha: null }) : file;
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(file.value.text);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return err(invalidPlayers({ code: 'INVALID_SCHEMA', message }));
+    }
+    const parsed = parsePlayersFile(json);
+    if (!parsed.ok) {
+      return err(invalidPlayers(parsed.error));
+    }
+    return ok({ players: parsed.value.players, sha: file.value.sha });
   }
 
-  savePlayer(player: Player): Promise<Result<void, StorageError>> {
-    void player;
-    return notImplemented();
+  async listPlayers(): Promise<Result<Player[], StorageError>> {
+    const read = await this.readPlayers();
+    if (!read.ok) {
+      return read;
+    }
+    return ok([...read.value.players].sort(comparePlayers));
+  }
+
+  async savePlayer(player: Player): Promise<Result<void, StorageError>> {
+    const parsed = parsePlayer(player, 'Invalid player');
+    if (!parsed.ok) {
+      return parsed;
+    }
+    const valid = parsed.value;
+    // Upserts by id merge cleanly, so one conflict is retried on a fresh read; a second is returned.
+    let written: Result<{ sha: string }, StorageError> | null = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const read = await this.readPlayers();
+      if (!read.ok) {
+        return read;
+      }
+      const players = [...read.value.players.filter((p) => p.id !== valid.id), valid];
+      written = await this.client.writeFile(
+        PLAYERS_PATH,
+        playersFileText(players),
+        read.value.sha,
+        `Save player ${valid.name}`,
+      );
+      if (written.ok || written.error.code !== 'CONFLICT') {
+        break;
+      }
+    }
+    return written!.ok ? ok(undefined) : written!;
   }
 }

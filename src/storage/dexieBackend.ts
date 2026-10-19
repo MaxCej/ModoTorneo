@@ -39,7 +39,7 @@ function invalidDocument(message: string, cause: DomainError): StorageError {
 }
 
 /** Parses a player with `PlayerSchema`; failure is `INVALID_PLAYER` with an `INVALID_SCHEMA` cause. */
-function parsePlayer(value: unknown, context: string): Result<Player, StorageError> {
+export function parsePlayer(value: unknown, context: string): Result<Player, StorageError> {
   const parsed = PlayerSchema.safeParse(value);
   if (parsed.success) {
     return ok(parsed.data);

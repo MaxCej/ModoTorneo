@@ -8,7 +8,13 @@ import { CREATED_PAYLOAD, uuid } from '../../domain/fixtures/builders';
 import fixture from '../../domain/fixtures/top4-8players.json';
 import { FakeGitHub } from '../../test/fakeGitHub';
 import { ModoTorneoDb } from '../db';
-import { GitHubBackend, tournamentFileText, tournamentPath } from './githubBackend';
+import {
+  GitHubBackend,
+  PLAYERS_PATH,
+  playersFileText,
+  tournamentFileText,
+  tournamentPath,
+} from './githubBackend';
 
 const TOKEN = 'github_pat_backend_test';
 const ID = fixture.id;
@@ -355,5 +361,114 @@ describe('GitHubBackend listTournaments', () => {
     fake.offline = true;
     const offline = await backend.listTournaments();
     expect(offline.ok || offline.error.code).toBe('UNAVAILABLE');
+  });
+});
+
+describe('GitHubBackend players', () => {
+  const alice = { id: uuid(201), name: 'Alice', createdAt: '2026-10-11T18:30:00.000Z' };
+  const bob = { id: uuid(202), name: 'Bóbby', createdAt: '2026-10-11T18:31:00.000Z' };
+  const carol = { id: uuid(203), name: 'Carol', createdAt: '2026-10-11T18:32:00.000Z' };
+
+  function storedPlayers(fake: FakeGitHub) {
+    return JSON.parse(fake.getFile(PLAYERS_PATH) ?? 'null') as {
+      kind: string;
+      schemaVersion: number;
+      players: Array<{ id: string; name: string }>;
+    };
+  }
+
+  it('returns an empty list when players.json is missing', async () => {
+    const { backend } = setup();
+    expect(await backend.listPlayers()).toEqual({ ok: true, value: [] });
+  });
+
+  it('creates players.json, then upserts by id with players sorted by id', async () => {
+    const { fake, backend } = setup();
+    expect(await backend.savePlayer(bob)).toEqual({ ok: true, value: undefined });
+    expect(fake.requestsTo('PUT')[0]?.body).not.toHaveProperty('sha');
+    await backend.savePlayer(alice);
+    await backend.savePlayer({ ...bob, name: '  Bob  ' });
+    const file = storedPlayers(fake);
+    expect(file.kind).toBe('modotorneo-players');
+    expect(file.schemaVersion).toBe(1);
+    expect(file.players.map((p) => [p.id, p.name])).toEqual([
+      [alice.id, 'Alice'],
+      [bob.id, 'Bob'],
+    ]);
+    expect(fake.getFile(PLAYERS_PATH)).toBe(playersFileText([alice, { ...bob, name: 'Bob' }]));
+    expect(putMessages(fake)).toEqual([
+      'Save player Bóbby',
+      'Save player Alice',
+      'Save player Bob',
+    ]);
+  });
+
+  it('lists players sorted by name', async () => {
+    const { backend } = setup();
+    for (const player of [carol, bob, alice]) {
+      await backend.savePlayer(player);
+    }
+    const list = await backend.listPlayers();
+    expect(list.ok && list.value.map((p) => p.name)).toEqual(['Alice', 'Bóbby', 'Carol']);
+  });
+
+  it("succeeds after one CONFLICT, keeping the other device's player", async () => {
+    const { fake, backend } = setup();
+    await backend.savePlayer(alice);
+    let first = true;
+    const racingFetch: typeof fetch = async (input, init) => {
+      if (first && init?.method === 'PUT') {
+        first = false;
+        // Another device adds Carol between this read and this write.
+        fake.setFile(PLAYERS_PATH, playersFileText([alice, carol]));
+      }
+      return fake.fetch(input, init);
+    };
+    const racing = new GitHubBackend({
+      owner: fake.owner,
+      repo: fake.repo,
+      token: TOKEN,
+      fetch: racingFetch,
+      dbName: 'test-github-backend-racing',
+    });
+    expect(await racing.savePlayer(bob)).toEqual({ ok: true, value: undefined });
+    expect(storedPlayers(fake).players.map((p) => p.name)).toEqual(['Alice', 'Bóbby', 'Carol']);
+  });
+
+  it('returns CONFLICT after two conflicts', async () => {
+    const { fake, backend } = setup();
+    await backend.savePlayer(alice);
+    fake.failNext('PUT', 409, 2);
+    const saved = await backend.savePlayer(bob);
+    expect(saved.ok || saved.error.code).toBe('CONFLICT');
+    expect(fake.requestsTo('PUT')).toHaveLength(3);
+    expect(storedPlayers(fake).players.map((p) => p.name)).toEqual(['Alice']);
+  });
+
+  it('rejects an invalid player without a request', async () => {
+    const { fake, backend } = setup();
+    const saved = await backend.savePlayer({ ...alice, name: '   ' });
+    expect(saved.ok || saved.error.code).toBe('INVALID_PLAYER');
+    expect(fake.requests).toHaveLength(0);
+  });
+
+  it('returns INVALID_PLAYER for an invalid players.json and does not overwrite it', async () => {
+    const { fake, backend } = setup();
+    fake.setFile(PLAYERS_PATH, '{ "kind": "something-else" }');
+    const list = await backend.listPlayers();
+    expect(list.ok || list.error.code).toBe('INVALID_PLAYER');
+    expect(list.ok || list.error.message).toContain(PLAYERS_PATH);
+    const saved = await backend.savePlayer(alice);
+    expect(saved.ok || saved.error.code).toBe('INVALID_PLAYER');
+    expect(fake.requestsTo('PUT')).toHaveLength(0);
+  });
+
+  it('returns UNAVAILABLE offline', async () => {
+    const { fake, backend } = setup();
+    fake.offline = true;
+    const list = await backend.listPlayers();
+    expect(list.ok || list.error.code).toBe('UNAVAILABLE');
+    const saved = await backend.savePlayer(alice);
+    expect(saved.ok || saved.error.code).toBe('UNAVAILABLE');
   });
 });
