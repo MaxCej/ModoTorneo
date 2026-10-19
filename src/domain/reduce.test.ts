@@ -457,7 +457,11 @@ describe('reduce: top cut and finish', () => {
   it('throws TOP_CUT_DRAW on replay of a drawn top cut match', () => {
     const { events } = swissDone()
       .add('TopCutStarted', { size: 4 })
-      .add('RoundPaired', { round: 3, stage: 'topCut', pairings: [pairing(5, 1, P1, P4)] })
+      .add('RoundPaired', {
+        round: 3,
+        stage: 'topCut',
+        pairings: [pairing(5, 1, P1, P4), pairing(6, 2, P2, P3)],
+      })
       .add('ResultReported', {
         matchId: matchId(5),
         result: { winsA: 0, winsB: 0, draws: 0, kind: 'intentionalDraw' },
