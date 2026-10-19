@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import {
   err,
-  execute,
+  executeAll,
   ok,
   type Command,
   type Deps,
@@ -30,6 +30,8 @@ export type TournamentStoreState = {
   saving: boolean; // true while the save queue is not empty
   load(id: Uuid): Promise<void>;
   dispatch(cmd: Command): Result<TournamentState, DomainError>;
+  /** Appends every command or none, with one optimistic update and one save. */
+  dispatchAll(commands: readonly [Command, ...Command[]]): Result<TournamentState, DomainError>;
   clearNotice(): void;
 };
 
@@ -38,8 +40,8 @@ function refused(message: string): Result<TournamentState, DomainError> {
 }
 
 /**
- * The open tournament. `dispatch` applies commands optimistically and queues one save per
- * accepted command. Saves run one at a time, each with the revision returned by the previous one.
+ * The open tournament. `dispatch` and `dispatchAll` apply commands optimistically and queue
+ * one save per accepted call. Saves run one at a time, each with the revision returned by the previous one.
  * Any save failure drops the rest of the queue and reloads (or blocks, on NOT_FOUND).
  */
 export function createTournamentStore(backend: StorageBackend, deps?: Deps) {
@@ -142,6 +144,10 @@ export function createTournamentStore(backend: StorageBackend, deps?: Deps) {
       },
 
       dispatch(cmd) {
+        return get().dispatchAll([cmd]);
+      },
+
+      dispatchAll(commands) {
         if (deleted) {
           return refused('Tournament no longer exists');
         }
@@ -149,7 +155,7 @@ export function createTournamentStore(backend: StorageBackend, deps?: Deps) {
         if (doc === null) {
           return refused('No tournament is loaded');
         }
-        const result = execute(doc, cmd, deps);
+        const result = executeAll(doc, commands, deps);
         if (!result.ok) {
           set({ commandError: result.error });
           return result;

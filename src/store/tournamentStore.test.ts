@@ -224,3 +224,40 @@ describe('tournamentStore on a running tournament', () => {
     expect(store.getState().commandError?.code).toBe('WRONG_STATUS');
   });
 });
+
+describe('tournamentStore dispatchAll', () => {
+  it('appends every command with one save', async () => {
+    const { backend, store, doc } = await openStore();
+    const save = vi.spyOn(backend, 'saveTournament');
+
+    const result = store
+      .getState()
+      .dispatchAll([register(P1, 'Alice'), register(P2, 'Bruno'), register(P3, 'Carmen')]);
+
+    expect(result.ok).toBe(true);
+    expect(Object.keys(store.getState().state?.players ?? {})).toEqual([P1, P2, P3]);
+    await idle(store);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(store.getState()).toMatchObject({ revision: '2', notice: null });
+    expect(unwrap(await backend.loadTournament(doc.id)).doc.events).toHaveLength(4);
+  });
+
+  it('sets commandError for a failing list and changes nothing', async () => {
+    const { backend, store, doc } = await openStore();
+    const before = store.getState().state;
+    const save = vi.spyOn(backend, 'saveTournament');
+
+    const result = store
+      .getState()
+      .dispatchAll([register(P1, 'Alice'), { type: 'PlayerDropped', payload: { playerId: P2 } }]);
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'UNKNOWN_PLAYER' } });
+    expect(store.getState()).toMatchObject({
+      commandError: { code: 'UNKNOWN_PLAYER' },
+      saving: false,
+      doc,
+    });
+    expect(store.getState().state).toBe(before);
+    expect(save).not.toHaveBeenCalled();
+  });
+});
