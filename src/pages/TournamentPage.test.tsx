@@ -571,3 +571,43 @@ describe('TournamentPage redo pairings', () => {
     expect(stored.ok && stored.value.state.rounds).toHaveLength(1);
   });
 });
+
+describe('TournamentPage top cut', () => {
+  it('starts the top cut in one save and selects the semifinals tab', async () => {
+    const ids = playerIds(8);
+    const log = swissHistory(
+      ids,
+      [
+        [
+          [ids[0], ids[1]],
+          [ids[2], ids[3]],
+          [ids[4], ids[5]],
+          [ids[6], ids[7]],
+        ],
+      ],
+      { ...CREATED_PAYLOAD, swissRounds: 1 },
+    );
+    await backend.saveTournament({ schemaVersion: 1, id: TOURNAMENT_ID, events: log.events }, null);
+    renderPage();
+    await screen.findByRole('tab', { name: 'Round 1' });
+    const save = vi.spyOn(backend, 'saveTournament');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start top cut' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Start top cut' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Start top cut' }));
+
+    expect(screen.getByRole('tab', { name: 'Semifinals' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByText('0 of 2 results')).toBeInTheDocument();
+    await idle();
+    expect(save).toHaveBeenCalledTimes(1);
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    expect(stored.ok && stored.value.doc.events.slice(-2).map((e) => e.type)).toEqual([
+      'TopCutStarted',
+      'RoundPaired',
+    ]);
+    expect(stored.ok && stored.value.state).toMatchObject({ status: 'topCut', topCut: 4 });
+  });
+});

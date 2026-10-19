@@ -346,3 +346,137 @@ describe('RoundControls: Redo pairings', () => {
     expect(screen.getByText(/^Could not pair the round \(/)).toBeInTheDocument();
   });
 });
+
+describe('RoundControls: top cut', () => {
+  const ids = playerIds(8);
+  const startButton = () => screen.queryByRole('button', { name: 'Start top cut' });
+  const buttons = () => screen.getAllByRole('button').map((button) => button.textContent);
+
+  /** 8 players (or `count`), one closed swiss round of three: 1 v 2, 3 v 4… */
+  const swissDone = (count = 8) =>
+    swissHistory(
+      playerIds(count),
+      [
+        Array.from(
+          { length: count / 2 },
+          (_, i) => [ids[2 * i], ids[2 * i + 1]] as [string, string],
+        ),
+      ],
+      { ...CREATED_PAYLOAD, swissRounds: 3 },
+    );
+  const docOf = (log: ReturnType<typeof swissDone>): TournamentDocument => ({
+    schemaVersion: 1,
+    id: TOURNAMENT_ID,
+    events: log.events,
+  });
+
+  it('offers Start top cut in running with no open round and at least 4 active players', () => {
+    renderControls(reduce(swissDone().events, TOURNAMENT_ID));
+    expect(buttons()).toEqual(['Pair round 2', 'Start top cut', 'Finish tournament']);
+  });
+
+  it.each([
+    ['in setup', () => registeredLog(8)],
+    ['with 2 active players', () => swissDone(2)],
+    [
+      'with a round open',
+      () =>
+        swissDone().add('RoundPaired', {
+          round: 2,
+          stage: 'swiss',
+          pairings: [
+            pairing(10, 1, ids[0], ids[2]),
+            pairing(11, 2, ids[1], ids[3]),
+            pairing(12, 3, ids[4], ids[6]),
+            pairing(13, 4, ids[5], ids[7]),
+          ],
+        }),
+    ],
+    ['in the top cut', () => swissDone().add('TopCutStarted', { size: 4 })],
+    ['when finished', () => swissDone().add('TournamentFinished', {})],
+  ])('hides Start top cut %s', (_, build) => {
+    renderControls(reduce(build().events, TOURNAMENT_ID));
+    expect(startButton()).not.toBeInTheDocument();
+  });
+
+  it('hides Start top cut with 3 active players', () => {
+    const log = swissDone(4).add('PlayerDropped', { playerId: ids[3] });
+    renderControls(reduce(log.events, TOURNAMENT_ID));
+    expect(startButton()).not.toBeInTheDocument();
+  });
+
+  it('starts and pairs the top cut in one dispatchAll and reports the first top cut round', () => {
+    const log = swissDone();
+    const { dispatch, dispatchAll, onPaired } = renderControls(
+      reduce(log.events, TOURNAMENT_ID),
+      undefined,
+      docOf(log),
+    );
+
+    fireEvent.click(startButton()!);
+    const dialog = within(screen.getByRole('dialog', { name: 'Start top cut' }));
+    fireEvent.click(dialog.getByText('Best of 5'));
+    fireEvent.click(dialog.getByRole('button', { name: 'Start top cut' }));
+
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(dispatchAll).toHaveBeenCalledTimes(1);
+    const [commands] = dispatchAll.mock.calls[0];
+    expect(commands).toHaveLength(2);
+    expect(commands[0]).toEqual({ type: 'TopCutStarted', payload: { size: 4, bestOf: 5 } });
+    expect(commands[1]).toMatchObject({
+      type: 'RoundPaired',
+      payload: { round: 2, stage: 'topCut' },
+    });
+    expect(onPaired).toHaveBeenCalledWith(2);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  /** Top 4 of `swissDone`: semifinals (round 2) closed, players 1 and 3 win. */
+  const semisDone = () => {
+    const log = swissDone().add('TopCutStarted', { size: 4 });
+    log.add('RoundPaired', {
+      round: 2,
+      stage: 'topCut',
+      pairings: [pairing(20, 1, ids[0], ids[6]), pairing(21, 2, ids[2], ids[4])],
+    });
+    log.add('ResultReported', { matchId: matchId(20), result: WIN_A });
+    log.add('ResultReported', { matchId: matchId(21), result: WIN_A });
+    return log.add('RoundClosed', { round: 2 });
+  };
+
+  it('pairs the final after the semifinals close', () => {
+    const { dispatch, onPaired } = renderControls(reduce(semisDone().events, TOURNAMENT_ID));
+    expect(buttons()).toEqual(['Pair round 3', 'Finish tournament']);
+
+    fireEvent.click(pairButton(3)!);
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch.mock.calls[0][0]).toMatchObject({
+      type: 'RoundPaired',
+      payload: { round: 3, stage: 'topCut', pairings: [{ playerA: ids[0], playerB: ids[2] }] },
+    });
+    expect(onPaired).toHaveBeenCalledWith(3);
+  });
+
+  it('offers only Finish tournament after the final closes', () => {
+    const log = semisDone().add('RoundPaired', {
+      round: 3,
+      stage: 'topCut',
+      pairings: [pairing(22, 1, ids[0], ids[2])],
+    });
+    log.add('ResultReported', { matchId: matchId(22), result: WIN_A });
+    log.add('RoundClosed', { round: 3 });
+    renderControls(reduce(log.events, TOURNAMENT_ID));
+    expect(buttons()).toEqual(['Finish tournament']);
+  });
+
+  it('pairs the first top cut round when the top cut has none (after a rollback)', () => {
+    const log = swissDone().add('TopCutStarted', { size: 4 });
+    const { dispatch } = renderControls(reduce(log.events, TOURNAMENT_ID));
+    fireEvent.click(pairButton(2)!);
+    expect(dispatch.mock.calls[0][0]).toMatchObject({
+      type: 'RoundPaired',
+      payload: { round: 2, stage: 'topCut' },
+    });
+  });
+});

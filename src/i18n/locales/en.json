@@ -193,12 +193,31 @@
       }
     },
     "topCut": {
+      "start": "Start top cut",
       "rounds": {
         "final": "Final",
         "semifinals": "Semifinals",
         "quarterfinals": "Quarterfinals",
         "roundOf16": "Round of 16",
         "roundOf32": "Round of 32"
+      },
+      "startModal": {
+        "title": "Start top cut",
+        "early": "{{played}} of {{total}} swiss rounds played.",
+        "size": "Size",
+        "sizeOption": "Top {{size}}",
+        "notRecommended": "Fewer than 8 players: a top cut is not recommended.",
+        "bestOf": "Best of",
+        "bestOfOption": "Best of {{bestOf}}",
+        "seeds": "Seeds",
+        "seed": "Seed",
+        "player": "Player",
+        "points": "Points",
+        "tied": "Tied",
+        "cutLineTie": "{{names}} are tied at the cut line. A random draw decides who makes the cut.",
+        "otherTies": "Tied players are seeded in random order.",
+        "cancel": "Cancel",
+        "confirm": "Start top cut"
       }
     },
     "standings": {
