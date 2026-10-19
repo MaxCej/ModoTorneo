@@ -189,6 +189,32 @@
       "recordValue": "{{wins}}-{{losses}}-{{draws}}",
       "percent": "{{value}}%",
       "dropped": "Dropped"
+    },
+    "history": {
+      "tab": "History",
+      "tableLabel": "History",
+      "seq": "#",
+      "event": "Event",
+      "time": "Time",
+      "actions": "Actions",
+      "seqValue": "#{{seq}}",
+      "undone": "Undone",
+      "rollBack": "Roll back to here",
+      "unknownPlayer": "Unknown player",
+      "events": {
+        "TournamentCreated": "Tournament created",
+        "PlayerRegistered": "{{name}} registered",
+        "PlayerDropped": "{{name}} dropped",
+        "PlayerUnregistered": "{{name}} removed",
+        "TournamentDetailsChanged": "Details changed: {{fields}}",
+        "RoundPaired": "Round {{round}} paired",
+        "PlayersSwapped": "Round {{round}}: {{a}} and {{b}} swapped",
+        "ResultReported": "Round {{round}}: {{a}} {{score}} {{b}}",
+        "RoundClosed": "Round {{round}} closed",
+        "TopCutStarted": "Top {{size}} started",
+        "TournamentFinished": "Tournament finished",
+        "RolledBack": "Rolled back to #{{seq}}"
+      }
     }
   },
   "notFound": {

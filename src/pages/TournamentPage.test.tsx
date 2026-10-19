@@ -262,12 +262,46 @@ describe('TournamentPage', () => {
       'Players',
       'Standings',
       'Round 1',
+      'History',
     ]);
     // The default tab is still the open round.
     expect(screen.getByRole('tab', { name: 'Round 1' })).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.click(screen.getByRole('tab', { name: 'Standings' }));
     expect(screen.getByText('Standings appear when round 1 is closed.')).toBeInTheDocument();
+  });
+
+  it('puts the History tab last, after every round tab, and keeps the default tab', async () => {
+    const [a, b, c, d] = playerIds(4);
+    const log = swissHistory(playerIds(4), [
+      [
+        [a, b],
+        [c, d],
+      ],
+    ]).add('RoundPaired', {
+      round: 2,
+      stage: 'swiss',
+      pairings: [pairing(3, 1, a, c), pairing(4, 2, b, d)],
+    });
+    await backend.saveTournament({ schemaVersion: 1, id: TOURNAMENT_ID, events: log.events }, null);
+    renderPage();
+
+    expect(await screen.findByRole('tab', { name: 'Round 2' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Players',
+      'Standings',
+      'Round 1',
+      'Round 2',
+      'History',
+    ]);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'History' }));
+    const rows = within(screen.getByRole('table', { name: 'History' })).getAllByRole('row');
+    expect(rows).toHaveLength(log.events.length + 1);
+    expect(within(rows[1]).getByText('Round 2 paired')).toBeInTheDocument();
   });
 
   it('shows the standings table once round 1 is closed', async () => {
