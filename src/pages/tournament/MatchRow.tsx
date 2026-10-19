@@ -1,7 +1,14 @@
 import { Badge, Button, Group, NumberInput, Stack, Text } from '@mantine/core';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fitsBestOf, MatchResultSchema, type Match, type MatchResult } from '../../domain';
+import {
+  fitsBestOf,
+  matchOutcome,
+  MatchResultSchema,
+  type BestOf,
+  type Match,
+  type MatchResult,
+} from '../../domain';
 
 /** Swiss matches are best of three. */
 const SWISS_BEST_OF = 3;
@@ -16,6 +23,33 @@ export const RESULT_PRESETS: ReadonlyArray<{ key: string; result: MatchResult }>
   { key: 'intentionalDraw', result: { winsA: 0, winsB: 0, draws: 0, kind: 'intentionalDraw' } },
   { key: 'unplayed', result: { winsA: 0, winsB: 0, draws: 0, kind: 'unplayed' } },
 ];
+
+type Preset = { key: string; result: MatchResult };
+
+const played = (winsA: number, winsB: number): MatchResult => ({
+  winsA,
+  winsB,
+  draws: 0,
+  kind: 'played',
+});
+
+/** Top cut presets: winner-only results that fit the best-of, from player A's side. */
+export const TOP_CUT_PRESETS: Readonly<Record<BestOf, ReadonlyArray<Preset>>> = {
+  3: [
+    { key: 'win20', result: played(2, 0) },
+    { key: 'win21', result: played(2, 1) },
+    { key: 'loss12', result: played(1, 2) },
+    { key: 'loss02', result: played(0, 2) },
+  ],
+  5: [
+    { key: 'win30', result: played(3, 0) },
+    { key: 'win31', result: played(3, 1) },
+    { key: 'win32', result: played(3, 2) },
+    { key: 'loss23', result: played(2, 3) },
+    { key: 'loss13', result: played(1, 3) },
+    { key: 'loss03', result: played(0, 3) },
+  ],
+};
 
 function sameResult(a: MatchResult, b: MatchResult): boolean {
   return a.kind === b.kind && a.winsA === b.winsA && a.winsB === b.winsB && a.draws === b.draws;
@@ -46,18 +80,31 @@ type Props = {
   /** null for a bye. */
   labelB: string | null;
   readOnly: boolean;
+  /** Top cut rounds offer winner-only results for their best-of. Default: swiss. */
+  stage?: 'swiss' | 'topCut';
+  /** Used in top cut rounds only; swiss matches are best of three. */
+  bestOf?: BestOf;
   onReport: (result: MatchResult) => void;
 };
 
 /** Table, player A, result controls, player B. */
-export function MatchRow({ match, labelA, labelB, readOnly, onReport }: Props) {
+export function MatchRow({
+  match,
+  labelA,
+  labelB,
+  readOnly,
+  stage = 'swiss',
+  bestOf = 3,
+  onReport,
+}: Props) {
   const { t } = useTranslation();
   const resultText = useResultText();
   const [customOpen, setCustomOpen] = useState(false);
   const bye = match.playerB === null;
   const current = match.result;
+  const presets = stage === 'topCut' ? TOP_CUT_PRESETS[bestOf] : RESULT_PRESETS;
   const matchesPreset =
-    current !== null && RESULT_PRESETS.some((preset) => sameResult(preset.result, current));
+    current !== null && presets.some((preset) => sameResult(preset.result, current));
 
   return (
     <Group
@@ -84,7 +131,7 @@ export function MatchRow({ match, labelA, labelB, readOnly, onReport }: Props) {
             </Text>
           ) : (
             <Group gap={4} wrap="wrap">
-              {RESULT_PRESETS.map((preset) => {
+              {presets.map((preset) => {
                 const selected = current !== null && sameResult(preset.result, current);
                 return (
                   <Button
@@ -119,6 +166,7 @@ export function MatchRow({ match, labelA, labelB, readOnly, onReport }: Props) {
           {customOpen && !readOnly && (
             <CustomResult
               initial={current}
+              topCutBestOf={stage === 'topCut' ? bestOf : null}
               onCancel={() => setCustomOpen(false)}
               onSave={(result) => {
                 onReport(result);
@@ -134,12 +182,17 @@ export function MatchRow({ match, labelA, labelB, readOnly, onReport }: Props) {
 
 type CustomProps = {
   initial: MatchResult | null;
+  /** `null` in swiss: best of three, draws allowed. */
+  topCutBestOf: BestOf | null;
   onCancel: () => void;
   onSave: (result: MatchResult) => void;
 };
 
-/** Three game counts, checked with `MatchResultSchema` and the best-of-three rule. */
-function CustomResult({ initial, onCancel, onSave }: CustomProps) {
+/**
+ * Three game counts, checked with `MatchResultSchema` and the best-of rule. A top cut result
+ * also needs a winner.
+ */
+function CustomResult({ initial, topCutBestOf, onCancel, onSave }: CustomProps) {
   const { t } = useTranslation();
   const start = initial?.kind === 'played' ? initial : null;
   const [winsA, setWinsA] = useState<number | string>(start?.winsA ?? 0);
@@ -149,7 +202,13 @@ function CustomResult({ initial, onCancel, onSave }: CustomProps) {
 
   function save() {
     const parsed = MatchResultSchema.safeParse({ winsA, winsB, draws, kind: 'played' });
-    if (!parsed.success || !fitsBestOf(parsed.data, SWISS_BEST_OF)) {
+    const bestOf = topCutBestOf ?? SWISS_BEST_OF;
+    const needsWinner = topCutBestOf !== null;
+    if (
+      !parsed.success ||
+      !fitsBestOf(parsed.data, bestOf) ||
+      (needsWinner && !['A', 'B'].includes(matchOutcome(parsed.data)))
+    ) {
       setInvalid(true);
       return;
     }
@@ -187,7 +246,12 @@ function CustomResult({ initial, onCancel, onSave }: CustomProps) {
       </Group>
       {invalid && (
         <Text size="sm" c="red" role="alert">
-          {t('tournament.rounds.customInvalid')}
+          {topCutBestOf === null
+            ? t('tournament.rounds.customInvalid')
+            : t('tournament.rounds.customInvalidTopCut', {
+                bestOf: topCutBestOf,
+                wins: (topCutBestOf + 1) / 2,
+              })}
         </Text>
       )}
     </Stack>

@@ -13,7 +13,7 @@ import {
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
-import type { Command, TournamentState } from '../domain';
+import { topCutRoundName, type Command, type Round, type TournamentState } from '../domain';
 import { usePlayersStore } from '../store/playersStore';
 import { useTournamentStore, type SaveNotice } from '../store/tournamentStore';
 import { DetailsCard } from './tournament/DetailsCard';
@@ -40,6 +40,10 @@ function defaultTab(state: TournamentState): string {
 
 export function TournamentPage() {
   const { t } = useTranslation();
+  const roundTabLabel = (round: Round) =>
+    round.stage === 'topCut'
+      ? t(`tournament.topCut.rounds.${topCutRoundName(round.matches.length)}`)
+      : t('tournament.rounds.tabRound', { round: round.number });
   const { id } = useParams();
   const status = useTournamentStore((s) => s.status);
   const doc = useTournamentStore((s) => s.doc);
@@ -141,7 +145,7 @@ export function TournamentPage() {
                 <Tabs.Tab value={STANDINGS_TAB}>{t('tournament.standings.tab')}</Tabs.Tab>
                 {state.rounds.map((round) => (
                   <Tabs.Tab key={round.number} value={roundTab(round.number)}>
-                    {t('tournament.rounds.tabRound', { round: round.number })}
+                    {roundTabLabel(round)}
                   </Tabs.Tab>
                 ))}
                 <Tabs.Tab value={HISTORY_TAB}>{t('tournament.history.tab')}</Tabs.Tab>

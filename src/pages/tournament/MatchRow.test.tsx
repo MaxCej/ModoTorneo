@@ -1,13 +1,13 @@
 import { MantineProvider } from '@mantine/core';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { Match, MatchResult } from '../../domain';
+import type { BestOf, Match, MatchResult } from '../../domain';
 import { matchId, PLAYERS } from '../../domain/fixtures/builders';
-import { MatchRow, RESULT_PRESETS } from './MatchRow';
+import { MatchRow, RESULT_PRESETS, TOP_CUT_PRESETS } from './MatchRow';
 
 const [P1, P2] = PLAYERS;
 
-function renderRow(match: Match, readOnly = false) {
+function renderRow(match: Match, readOnly = false, topCutBestOf?: BestOf) {
   const onReport = vi.fn<(result: MatchResult) => void>();
   render(
     <MantineProvider env="test">
@@ -16,6 +16,8 @@ function renderRow(match: Match, readOnly = false) {
         labelA="Alice (3 pts, 1-0-0)"
         labelB={match.playerB === null ? null : 'Bruno (0 pts, 0-1-0)'}
         readOnly={readOnly}
+        stage={topCutBestOf === undefined ? 'swiss' : 'topCut'}
+        bestOf={topCutBestOf}
         onReport={onReport}
       />
     </MantineProvider>,
@@ -154,5 +156,84 @@ describe('MatchRow custom result', () => {
     fireEvent.click(row.getByRole('button', { name: 'Custom' }));
     expect(row.getByRole('textbox', { name: 'Wins A' })).toHaveValue('1');
     expect(row.getByRole('textbox', { name: 'Draws' })).toHaveValue('1');
+  });
+});
+
+describe('MatchRow in a top cut round', () => {
+  const buttonLabels = (row: ReturnType<typeof within>) =>
+    row
+      .getAllByRole('button')
+      .map((button: HTMLElement) => button.textContent)
+      .filter((label: string | null) => label !== 'Custom');
+
+  it('offers 2-0, 2-1, 1-2 and 0-2 in best of three', () => {
+    const { row } = renderRow(open(), false, 3);
+    expect(buttonLabels(row)).toEqual(['2-0', '2-1', '1-2', '0-2']);
+  });
+
+  it.each([
+    ['3-0', 3, 0],
+    ['3-1', 3, 1],
+    ['3-2', 3, 2],
+    ['2-3', 2, 3],
+    ['1-3', 1, 3],
+    ['0-3', 0, 3],
+  ])('reports %s in best of five', (label, winsA, winsB) => {
+    const { onReport, row } = renderRow(open(), false, 5);
+    fireEvent.click(row.getByRole('button', { name: label }));
+    expect(onReport).toHaveBeenCalledWith({ winsA, winsB, draws: 0, kind: 'played' });
+  });
+
+  it('has exactly the best of five presets of the spec', () => {
+    const { row } = renderRow(open(), false, 5);
+    expect(buttonLabels(row)).toEqual(['3-0', '3-1', '3-2', '2-3', '1-3', '0-3']);
+    expect(TOP_CUT_PRESETS[5]).toHaveLength(6);
+  });
+
+  it('offers no draw, ID or Unplayed', () => {
+    const { row } = renderRow(open(), false, 5);
+    for (const label of ['1-1-1', 'ID', 'Unplayed']) {
+      expect(row.queryByRole('button', { name: label })).not.toBeInTheDocument();
+    }
+  });
+
+  it('keeps the swiss presets in a swiss round', () => {
+    const { row } = renderRow(open());
+    expect(buttonLabels(row)).toEqual(['2-0', '2-1', '1-2', '0-2', '1-1-1', 'ID', 'Unplayed']);
+  });
+
+  function enter(row: ReturnType<typeof within>, winsA: string, winsB: string, draws: string) {
+    fireEvent.click(row.getByRole('button', { name: 'Custom' }));
+    fireEvent.change(row.getByRole('textbox', { name: 'Wins A' }), { target: { value: winsA } });
+    fireEvent.change(row.getByRole('textbox', { name: 'Wins B' }), { target: { value: winsB } });
+    fireEvent.change(row.getByRole('textbox', { name: 'Draws' }), { target: { value: draws } });
+    fireEvent.click(row.getByRole('button', { name: 'Save' }));
+  }
+
+  it.each([
+    ['2-2, no winner', '2', '2', '0'],
+    ['4-0, more than 3 wins', '4', '0', '0'],
+    ['3-2-1, more than 5 games', '3', '2', '1'],
+  ])('custom refuses %s in best of five', (_, a, b, d) => {
+    const { onReport, row } = renderRow(open(), false, 5);
+    enter(row, a, b, d);
+    expect(onReport).not.toHaveBeenCalled();
+    expect(
+      row.getByText(
+        'Enter a best-of-5 result with a winner: at most 3 wins each and 5 games in total.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('custom accepts 3-1-1 in best of five', () => {
+    const { onReport, row } = renderRow(open(), false, 5);
+    enter(row, '3', '1', '1');
+    expect(onReport).toHaveBeenCalledWith({ winsA: 3, winsB: 1, draws: 1, kind: 'played' });
+  });
+
+  it('custom refuses 3-0 in best of three', () => {
+    const { onReport, row } = renderRow(open(), false, 3);
+    enter(row, '3', '0', '0');
+    expect(onReport).not.toHaveBeenCalled();
   });
 });

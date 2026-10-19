@@ -91,6 +91,8 @@ export function RoundPanel({ state, round, onDispatch }: Props) {
                 labelA={label(match.playerA)}
                 labelB={match.playerB === null ? null : label(match.playerB)}
                 readOnly={readOnly}
+                stage={round.stage}
+                bestOf={state.topCutBestOf ?? 3}
                 onReport={(result) =>
                   onDispatch({
                     type: 'ResultReported',

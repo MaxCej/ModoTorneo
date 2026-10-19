@@ -304,6 +304,33 @@ describe('TournamentPage', () => {
     expect(within(rows[1]).getByText('Round 2 paired')).toBeInTheDocument();
   });
 
+  it('names top cut round tabs by their match count', async () => {
+    const [a, b, c, d] = playerIds(4);
+    const log = swissHistory(playerIds(4), [
+      [
+        [a, b],
+        [c, d],
+      ],
+    ]).add('TopCutStarted', { size: 4 });
+    addClosedRound(log, 2, 'topCut', [pairing(3, 1, a, d), pairing(4, 2, c, b)]);
+    log.add('RoundPaired', { round: 3, stage: 'topCut', pairings: [pairing(5, 1, a, c)] });
+    await backend.saveTournament({ schemaVersion: 1, id: TOURNAMENT_ID, events: log.events }, null);
+    renderPage();
+
+    expect(await screen.findByRole('tab', { name: 'Final' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Players',
+      'Standings',
+      'Round 1',
+      'Semifinals',
+      'Final',
+      'History',
+    ]);
+  });
+
   it('shows the standings table once round 1 is closed', async () => {
     const [a, b, c, d] = playerIds(4);
     const log = swissHistory(playerIds(4), [
