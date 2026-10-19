@@ -17,16 +17,18 @@ import type { Command, TournamentState } from '../domain';
 import { usePlayersStore } from '../store/playersStore';
 import { useTournamentStore, type SaveNotice } from '../store/tournamentStore';
 import { DetailsCard } from './tournament/DetailsCard';
+import { HistoryPanel } from './tournament/HistoryPanel';
 import { RegistrationPanel } from './tournament/RegistrationPanel';
 import { RoundControls } from './tournament/RoundControls';
 import { RoundPanel } from './tournament/RoundPanel';
 import { StandingsPanel } from './tournament/StandingsPanel';
 
 /** The panel whose command was rejected last, so its error shows under it. */
-type Panel = 'details' | 'registration' | 'rounds' | 'round';
+type Panel = 'details' | 'registration' | 'rounds' | 'round' | 'history';
 
 const PLAYERS_TAB = 'players';
 const STANDINGS_TAB = 'standings';
+const HISTORY_TAB = 'history';
 const roundTab = (round: number) => `round-${round}`;
 
 /** The open round, else the last round, else "Players". */
@@ -40,6 +42,7 @@ export function TournamentPage() {
   const { t } = useTranslation();
   const { id } = useParams();
   const status = useTournamentStore((s) => s.status);
+  const doc = useTournamentStore((s) => s.doc);
   const state = useTournamentStore((s) => s.state);
   const loadError = useTournamentStore((s) => s.loadError);
   const commandError = useTournamentStore((s) => s.commandError);
@@ -72,8 +75,15 @@ export function TournamentPage() {
     };
   }
 
+  function dispatchAllFrom(panel: Panel) {
+    return (commands: [Command, ...Command[]]) => {
+      setErrorPanel(panel);
+      return useTournamentStore.getState().dispatchAll(commands);
+    };
+  }
+
   // `id` guards against showing the previous tournament while the next one loads.
-  const loaded = status === 'ready' && state !== null && state.id === id;
+  const loaded = status === 'ready' && doc !== null && state !== null && state.id === id;
 
   if (status === 'error' && loadError?.code === 'NOT_FOUND') {
     return (
@@ -117,8 +127,10 @@ export function TournamentPage() {
             {commandError && errorPanel === 'details' && <CommandErrorAlert />}
 
             <RoundControls
+              doc={doc}
               state={state}
               onDispatch={dispatchFrom('rounds')}
+              onDispatchAll={dispatchAllFrom('rounds')}
               onPaired={(round) => selectTab(roundTab(round))}
             />
             {commandError && errorPanel === 'rounds' && <CommandErrorAlert />}
@@ -132,6 +144,7 @@ export function TournamentPage() {
                     {t('tournament.rounds.tabRound', { round: round.number })}
                   </Tabs.Tab>
                 ))}
+                <Tabs.Tab value={HISTORY_TAB}>{t('tournament.history.tab')}</Tabs.Tab>
               </Tabs.List>
 
               <Tabs.Panel value={PLAYERS_TAB} pt="md">
@@ -157,6 +170,12 @@ export function TournamentPage() {
                   </Stack>
                 </Tabs.Panel>
               ))}
+              <Tabs.Panel value={HISTORY_TAB} pt="md">
+                <Stack>
+                  <HistoryPanel onDispatch={dispatchFrom('history')} />
+                  {commandError && errorPanel === 'history' && <CommandErrorAlert />}
+                </Stack>
+              </Tabs.Panel>
             </Tabs>
           </>
         )}

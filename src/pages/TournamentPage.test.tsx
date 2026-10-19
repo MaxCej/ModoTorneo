@@ -262,12 +262,46 @@ describe('TournamentPage', () => {
       'Players',
       'Standings',
       'Round 1',
+      'History',
     ]);
     // The default tab is still the open round.
     expect(screen.getByRole('tab', { name: 'Round 1' })).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.click(screen.getByRole('tab', { name: 'Standings' }));
     expect(screen.getByText('Standings appear when round 1 is closed.')).toBeInTheDocument();
+  });
+
+  it('puts the History tab last, after every round tab, and keeps the default tab', async () => {
+    const [a, b, c, d] = playerIds(4);
+    const log = swissHistory(playerIds(4), [
+      [
+        [a, b],
+        [c, d],
+      ],
+    ]).add('RoundPaired', {
+      round: 2,
+      stage: 'swiss',
+      pairings: [pairing(3, 1, a, c), pairing(4, 2, b, d)],
+    });
+    await backend.saveTournament({ schemaVersion: 1, id: TOURNAMENT_ID, events: log.events }, null);
+    renderPage();
+
+    expect(await screen.findByRole('tab', { name: 'Round 2' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Players',
+      'Standings',
+      'Round 1',
+      'Round 2',
+      'History',
+    ]);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'History' }));
+    const rows = within(screen.getByRole('table', { name: 'History' })).getAllByRole('row');
+    expect(rows).toHaveLength(log.events.length + 1);
+    expect(within(rows[1]).getByText('Round 2 paired')).toBeInTheDocument();
   });
 
   it('shows the standings table once round 1 is closed', async () => {
@@ -399,5 +433,114 @@ describe('TournamentPage', () => {
         'Could not save (UNAVAILABLE): Disk full. The last saved version has been loaded.',
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe('TournamentPage rollback', () => {
+  /** Seqs 1–5: created, 4 registered. 6–9: round 1. 10–13: round 2. 14: finished. */
+  async function openFinished() {
+    const [a, b, c, d] = playerIds(4);
+    const log = swissHistory(playerIds(4), [
+      [
+        [a, b],
+        [c, d],
+      ],
+      [
+        [a, c],
+        [b, d],
+      ],
+    ]).add('TournamentFinished', {});
+    await backend.saveTournament({ schemaVersion: 1, id: TOURNAMENT_ID, events: log.events }, null);
+    renderPage();
+    fireEvent.click(await screen.findByRole('tab', { name: 'History' }));
+  }
+
+  const historyRows = () =>
+    within(screen.getByRole('table', { name: 'History' }))
+      .getAllByRole('row')
+      .slice(1);
+  const rowOf = (seq: number) =>
+    historyRows().find((row) => within(row).getAllByRole('cell')[0].textContent === `#${seq}`)!;
+
+  function rollBackTo(seq: number) {
+    fireEvent.click(within(rowOf(seq)).getByRole('button', { name: 'Roll back to here' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: `Roll back to #${seq}` })).getByRole('button', {
+        name: 'Roll back',
+      }),
+    );
+  }
+
+  it('reopens a closed round, keeps History selected and lets results change again', async () => {
+    await openFinished();
+
+    rollBackTo(12);
+
+    expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(historyRows()[0]).getByText('Rolled back to #12')).toBeInTheDocument();
+    for (const seq of [13, 14]) {
+      expect(within(rowOf(seq)).getByText('Undone')).toBeInTheDocument();
+    }
+    expect(screen.getByRole('button', { name: 'Close round 2' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Round 2' }));
+    const table1 = within(screen.getByRole('group', { name: 'Table 1' }));
+    fireEvent.click(table1.getByRole('button', { name: '2-0' }));
+
+    await idle();
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    expect(stored.ok).toBe(true);
+    if (stored.ok) {
+      expect(stored.value.doc.events).toHaveLength(16);
+      expect(stored.value.doc.events[14]).toMatchObject({
+        type: 'RolledBack',
+        payload: { toSeq: 12 },
+      });
+      expect(stored.value.state.rounds[1].closed).toBe(false);
+      expect(stored.value.state.voidedSeqs).toEqual([13, 14]);
+    }
+  });
+
+  it('returns a finished tournament to running', async () => {
+    await openFinished();
+    expect(screen.queryByRole('button', { name: 'Finish tournament' })).not.toBeInTheDocument();
+
+    rollBackTo(13);
+
+    expect(screen.getByRole('button', { name: 'Finish tournament' })).toBeInTheDocument();
+    await idle();
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    expect(stored.ok && stored.value.state.status).toBe('running');
+    expect(stored.ok && stored.value.doc.events).toHaveLength(15);
+  });
+});
+
+describe('TournamentPage redo pairings', () => {
+  it('re-pairs the open round in one save and shows it with no results', async () => {
+    const doc = runningDoc(4);
+    await backend.saveTournament(doc, null);
+    renderPage();
+    const table1 = () => within(screen.getByRole('group', { name: 'Table 1' }));
+    await screen.findByRole('group', { name: 'Table 1' });
+    fireEvent.click(table1().getByRole('button', { name: '2-0' }));
+    expect(await screen.findByText('1 of 2 results')).toBeInTheDocument();
+    await idle();
+    const save = vi.spyOn(backend, 'saveTournament');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Redo pairings' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Redo pairings for round 1?' }));
+    expect(dialog.getByText('This undoes 1 result and 0 swaps of this round.')).toBeInTheDocument();
+    fireEvent.click(dialog.getByRole('button', { name: 'Redo' }));
+
+    expect(screen.getByRole('tab', { name: 'Round 1' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('0 of 2 results')).toBeInTheDocument();
+    await idle();
+    expect(save).toHaveBeenCalledTimes(1);
+    const stored = await backend.loadTournament(TOURNAMENT_ID);
+    expect(stored.ok && stored.value.doc.events.slice(-2).map((e) => e.type)).toEqual([
+      'RolledBack',
+      'RoundPaired',
+    ]);
+    expect(stored.ok && stored.value.state.rounds).toHaveLength(1);
   });
 });

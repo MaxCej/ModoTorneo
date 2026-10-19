@@ -7,9 +7,25 @@ export * from './schemas/events';
 export * from './schemas/matchResult';
 export * from './schemas/player';
 
-export { createTournament, execute, type Command, type Deps, type ExecuteResult } from './commands';
+export {
+  createTournament,
+  execute,
+  executeAll,
+  type Command,
+  type Deps,
+  type ExecuteAllResult,
+  type ExecuteResult,
+} from './commands';
 export { parseTournamentDocument } from './document';
 export { CorruptLogError, type DomainError, type DomainErrorCode } from './errors';
+export {
+  historyOf,
+  rollbackPreview,
+  type History,
+  type HistoryEntry,
+  type MatchRef,
+  type RollbackPreview,
+} from './history';
 export { newId } from './ids';
 export { parseImportFile, type ParsedImport } from './importFile';
 export { compareLogs, playersFromDocument, type LogComparison } from './merge';
@@ -21,6 +37,7 @@ export {
   type PairingWarning,
 } from './pairing';
 export { matchPoints, playerRecords, type PlayerRecord } from './points';
+export { redoPairingCommands, type RedoPairings } from './redoPairings';
 export { effectiveEvents, reduce, stateAt } from './reduce';
 export { err, ok, type Result } from './result';
 export { lastClosedSwissRound, PERCENTAGE_FLOOR, standings, type Standing } from './standings';

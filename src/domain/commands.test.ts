@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createTournament, execute, type Deps } from './commands';
+import { createTournament, execute, executeAll, type Deps } from './commands';
 import { CREATED_PAYLOAD, PLAYERS, WIN_A, matchId, pairing, uuid } from './fixtures/builders';
 import { reduce } from './reduce';
 import type { TournamentDocument } from './schemas/document';
@@ -201,5 +201,75 @@ describe('execute', () => {
     const result = execute(doc, { type: 'RolledBack', payload: { toSeq: 4 } }, deps);
 
     expect(result).toMatchObject({ ok: false, error: { code: 'INVALID_ROLLBACK_TARGET' } });
+  });
+});
+
+describe('executeAll', () => {
+  it('appends one event per command with consecutive seqs', () => {
+    const doc = docWithTwoPlayers();
+
+    const {
+      doc: next,
+      state,
+      events,
+    } = unwrap(
+      executeAll(
+        doc,
+        [
+          { type: 'PlayerRegistered', payload: { playerId: P3, playerName: 'P3' } },
+          { type: 'PlayerDropped', payload: { playerId: P1 } },
+        ],
+        fixedDeps(),
+      ),
+    );
+
+    expect(events.map((e) => [e.seq, e.type])).toEqual([
+      [4, 'PlayerRegistered'],
+      [5, 'PlayerDropped'],
+    ]);
+    expect(next.events).toEqual([...doc.events, ...events]);
+    expect(state).toEqual(reduce(next.events, doc.id));
+  });
+
+  it('returns the first error and appends nothing', () => {
+    const doc = docWithTwoPlayers();
+    const before = structuredClone(doc);
+
+    const result = executeAll(
+      doc,
+      [
+        { type: 'PlayerDropped', payload: { playerId: P1 } },
+        { type: 'PlayerDropped', payload: { playerId: P3 } },
+      ],
+      fixedDeps(),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.objectContaining({ code: 'UNKNOWN_PLAYER', seq: 5 }),
+    });
+    expect(doc).toEqual(before);
+  });
+
+  it('runs a command after a rollback on the replayed state', () => {
+    const deps = fixedDeps();
+    let doc = docWithTwoPlayers(deps);
+    ({ doc } = unwrap(execute(doc, { type: 'PlayerDropped', payload: { playerId: P1 } }, deps)));
+
+    const { doc: next, state } = unwrap(
+      executeAll(
+        doc,
+        [
+          { type: 'RolledBack', payload: { toSeq: 3 } },
+          { type: 'PlayerDropped', payload: { playerId: P2 } },
+        ],
+        deps,
+      ),
+    );
+
+    expect(state).toEqual(reduce(next.events, doc.id));
+    expect(state).toMatchObject({ lastSeq: 6, voidedSeqs: [4] });
+    expect(state.players[P1].dropped).toBe(false);
+    expect(state.players[P2].dropped).toBe(true);
   });
 });

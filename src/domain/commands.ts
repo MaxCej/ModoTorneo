@@ -57,6 +57,36 @@ export function execute(
   return ok({ doc: { ...doc, events }, state, event });
 }
 
+export type ExecuteAllResult = {
+  doc: TournamentDocument;
+  state: TournamentState;
+  events: TournamentEvent[]; // the appended events, in order
+};
+
+/**
+ * Executes the commands in order, each on the document produced by the previous one.
+ * Returns the final document and state, or the first error. On error nothing is appended.
+ */
+export function executeAll(
+  doc: TournamentDocument,
+  commands: readonly [Command, ...Command[]],
+  deps: Deps = defaultDeps,
+): Result<ExecuteAllResult, DomainError> {
+  let current = doc;
+  let state: TournamentState | null = null;
+  const events: TournamentEvent[] = [];
+  for (const cmd of commands) {
+    const result = execute(current, cmd, deps);
+    if (!result.ok) {
+      return result;
+    }
+    ({ doc: current, state } = result.value);
+    events.push(result.value.event);
+  }
+  // The tuple type guarantees at least one command, so `state` is set.
+  return ok({ doc: current, state: state as TournamentState, events });
+}
+
 /** Starts a new tournament document. The tournament id is drawn before the event id. */
 export function createTournament(
   payload: TournamentCreatedPayload,
