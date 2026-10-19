@@ -194,6 +194,20 @@
     },
     "topCut": {
       "start": "Start top cut",
+      "tab": "Top cut",
+      "heading": "Top {{size}} · Best of {{bestOf}}",
+      "empty": "Pair the first top cut round to see the bracket.",
+      "bracketPlayer": "({{seed}}) {{name}}",
+      "notReported": "Not reported",
+      "placingsLabel": "Top cut placings",
+      "place": "Place",
+      "player": "Player",
+      "seed": "Seed",
+      "placeRange": "{{from}}–{{to}}",
+      "ordinal_ordinal_one": "{{count}}st",
+      "ordinal_ordinal_two": "{{count}}nd",
+      "ordinal_ordinal_few": "{{count}}rd",
+      "ordinal_ordinal_other": "{{count}}th",
       "rounds": {
         "final": "Final",
         "semifinals": "Semifinals",
@@ -301,7 +315,7 @@
         "PlayersSwapped": "Round {{round}}: {{a}} and {{b}} swapped",
         "ResultReported": "Round {{round}}: {{a}} {{score}} {{b}}",
         "RoundClosed": "Round {{round}} closed",
-        "TopCutStarted": "Top {{size}} started",
+        "TopCutStarted": "Top {{size}} started, best of {{bestOf}}",
         "TournamentFinished": "Tournament finished",
         "RolledBack": "Rolled back to #{{seq}}"
       }

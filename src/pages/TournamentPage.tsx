@@ -22,12 +22,14 @@ import { RegistrationPanel } from './tournament/RegistrationPanel';
 import { RoundControls } from './tournament/RoundControls';
 import { RoundPanel } from './tournament/RoundPanel';
 import { StandingsPanel } from './tournament/StandingsPanel';
+import { TopCutPanel } from './tournament/TopCutPanel';
 
 /** The panel whose command was rejected last, so its error shows under it. */
 type Panel = 'details' | 'registration' | 'rounds' | 'round' | 'history';
 
 const PLAYERS_TAB = 'players';
 const STANDINGS_TAB = 'standings';
+const TOP_CUT_TAB = 'top-cut';
 const HISTORY_TAB = 'history';
 const roundTab = (round: number) => `round-${round}`;
 
@@ -143,6 +145,9 @@ export function TournamentPage() {
               <Tabs.List>
                 <Tabs.Tab value={PLAYERS_TAB}>{t('tournament.rounds.tabPlayers')}</Tabs.Tab>
                 <Tabs.Tab value={STANDINGS_TAB}>{t('tournament.standings.tab')}</Tabs.Tab>
+                {state.topCut !== null && (
+                  <Tabs.Tab value={TOP_CUT_TAB}>{t('tournament.topCut.tab')}</Tabs.Tab>
+                )}
                 {state.rounds.map((round) => (
                   <Tabs.Tab key={round.number} value={roundTab(round.number)}>
                     {roundTabLabel(round)}
@@ -166,6 +171,11 @@ export function TournamentPage() {
               <Tabs.Panel value={STANDINGS_TAB} pt="md">
                 <StandingsPanel state={state} />
               </Tabs.Panel>
+              {state.topCut !== null && (
+                <Tabs.Panel value={TOP_CUT_TAB} pt="md">
+                  <TopCutPanel state={state} />
+                </Tabs.Panel>
+              )}
               {state.rounds.map((round) => (
                 <Tabs.Panel key={round.number} value={roundTab(round.number)} pt="md">
                   <Stack>

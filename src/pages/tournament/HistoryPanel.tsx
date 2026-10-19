@@ -134,7 +134,7 @@ function useEventLabel() {
         });
       }
       case 'TopCutStarted':
-        return t(key, { size: event.payload.size });
+        return t(key, { size: event.payload.size, bestOf: event.payload.bestOf ?? 3 });
       case 'RolledBack':
         return t(key, { seq: event.payload.toSeq });
       case 'TournamentCreated':

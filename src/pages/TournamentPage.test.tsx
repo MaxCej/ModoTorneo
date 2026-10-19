@@ -304,7 +304,7 @@ describe('TournamentPage', () => {
     expect(within(rows[1]).getByText('Round 2 paired')).toBeInTheDocument();
   });
 
-  it('names top cut round tabs by their match count', async () => {
+  it('names top cut round tabs by their match count and shows Top cut after Standings', async () => {
     const [a, b, c, d] = playerIds(4);
     const log = swissHistory(playerIds(4), [
       [
@@ -324,6 +324,7 @@ describe('TournamentPage', () => {
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
       'Players',
       'Standings',
+      'Top cut',
       'Round 1',
       'Semifinals',
       'Final',
