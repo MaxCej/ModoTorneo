@@ -7,7 +7,15 @@ export * from './schemas/events';
 export * from './schemas/matchResult';
 export * from './schemas/player';
 
-export { createTournament, execute, type Command, type Deps, type ExecuteResult } from './commands';
+export {
+  createTournament,
+  execute,
+  executeAll,
+  type Command,
+  type Deps,
+  type ExecuteAllResult,
+  type ExecuteResult,
+} from './commands';
 export { parseTournamentDocument } from './document';
 export { CorruptLogError, type DomainError, type DomainErrorCode } from './errors';
 export { newId } from './ids';
