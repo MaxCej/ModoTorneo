@@ -1,3 +1,4 @@
+import Dexie from 'dexie';
 import {
   err,
   ok,
@@ -9,8 +10,10 @@ import {
   type TournamentDocument,
   type TournamentState,
   type Uuid,
+  UuidSchema,
 } from '../../domain';
-import { toSummary } from '../summary';
+import { ModoTorneoDb, type GitHubSummaryRow } from '../db';
+import { compareSummaries, toSummary } from '../summary';
 import type {
   Revision,
   StorageBackend,
@@ -29,6 +32,34 @@ export type GitHubBackendOptions = {
 };
 
 export const TOURNAMENTS_DIR = 'tournaments';
+
+/** Parallel file reads while refreshing the tournament list. */
+const MAX_PARALLEL_READS = 4;
+
+/** The id of a `<uuid>.json` file name, else null (the file is ignored). */
+function tournamentIdOf(name: string): Uuid | null {
+  const match = /^(.+)\.json$/.exec(name);
+  return match && UuidSchema.safeParse(match[1]).success ? match[1]! : null;
+}
+
+/** `Promise.all` over `items` with at most `limit` calls running at once, results in order. */
+async function mapLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  call: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await call(items[index]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
 
 export function tournamentPath(id: Uuid): string {
   return `${TOURNAMENTS_DIR}/${id}.json`;
@@ -100,13 +131,84 @@ export function parseTournamentFile(
  */
 export class GitHubBackend implements StorageBackend {
   private readonly client: GitHubClient;
+  private readonly db: ModoTorneoDb;
+  private readonly repoKey: string;
 
   constructor(options: GitHubBackendOptions) {
     this.client = new GitHubClient(options);
+    this.db = new ModoTorneoDb(options.dbName);
+    this.repoKey = `${options.owner}/${options.repo}`.toLowerCase();
   }
 
-  listTournaments(): Promise<Result<TournamentSummary[], StorageError>> {
-    return notImplemented();
+  /** Cached rows of this repository. The cache is only a speed-up: a failure reads as empty. */
+  private async cachedRows(): Promise<Map<Uuid, GitHubSummaryRow>> {
+    try {
+      const rows = await this.db.githubSummaries
+        .where('[repo+id]')
+        .between([this.repoKey, Dexie.minKey], [this.repoKey, Dexie.maxKey])
+        .toArray();
+      return new Map(rows.map((row) => [row.id, row]));
+    } catch {
+      return new Map();
+    }
+  }
+
+  private async updateCache(put: GitHubSummaryRow[], remove: Uuid[]): Promise<void> {
+    try {
+      await this.db.transaction('rw', this.db.githubSummaries, async () => {
+        await this.db.githubSummaries.bulkDelete(remove.map((id) => [this.repoKey, id]));
+        await this.db.githubSummaries.bulkPut(put);
+      });
+    } catch {
+      // The next list refetches whatever the cache misses.
+    }
+  }
+
+  private cacheRow(summary: TournamentSummary): GitHubSummaryRow {
+    return { repo: this.repoKey, id: summary.id, sha: summary.revision, summary };
+  }
+
+  async listTournaments(): Promise<Result<TournamentSummary[], StorageError>> {
+    const listing = await this.client.listDirectory(TOURNAMENTS_DIR);
+    if (!listing.ok && listing.error.code !== 'NOT_FOUND') {
+      return listing;
+    }
+    const files = (listing.ok ? listing.value : []).flatMap((entry) => {
+      const id = entry.type === 'file' ? tournamentIdOf(entry.name) : null;
+      return id === null ? [] : [{ id, path: entry.path, sha: entry.sha }];
+    });
+    const cached = await this.cachedRows();
+    const summaries: TournamentSummary[] = [];
+    const stale: Array<{ id: Uuid; path: string }> = [];
+    for (const file of files) {
+      const row = cached.get(file.id);
+      if (row && row.sha === file.sha) {
+        summaries.push(row.summary);
+      } else {
+        stale.push(file);
+      }
+    }
+    const fetched = await mapLimit(stale, MAX_PARALLEL_READS, async ({ id, path }) => {
+      const read = await this.client.readFile(path);
+      if (!read.ok) {
+        return read;
+      }
+      const parsed = parseTournamentFile(path, id, read.value.text);
+      return parsed.ok
+        ? ok(githubSummary(parsed.value.doc, parsed.value.state, read.value.sha))
+        : parsed;
+    });
+    const failed = fetched.find((result) => !result.ok);
+    if (failed && !failed.ok) {
+      return failed;
+    }
+    const fresh = fetched.flatMap((result) => (result.ok ? [result.value] : []));
+    const listed = new Set(files.map((file) => file.id));
+    await this.updateCache(
+      fresh.map((summary) => this.cacheRow(summary)),
+      [...cached.keys()].filter((id) => !listed.has(id)),
+    );
+    return ok([...summaries, ...fresh].sort(compareSummaries));
   }
 
   async loadTournament(id: Uuid): Promise<Result<StoredTournament, StorageError>> {
@@ -143,6 +245,7 @@ export class GitHubBackend implements StorageBackend {
       return written;
     }
     const summary = githubSummary(valid, state, written.value.sha);
+    await this.updateCache([this.cacheRow(summary)], []);
     return ok({ revision: summary.revision, summary });
   }
 
@@ -161,9 +264,12 @@ export class GitHubBackend implements StorageBackend {
       expectedRevision,
       `Delete ${name}`,
     );
-    if (!deleted.ok && deleted.error.code === 'NOT_FOUND') {
-      return err({ code: 'NOT_FOUND', message: `No tournament with id ${id}` });
+    if (!deleted.ok) {
+      return deleted.error.code === 'NOT_FOUND'
+        ? err({ code: 'NOT_FOUND', message: `No tournament with id ${id}` })
+        : deleted;
     }
+    await this.updateCache([], [id]);
     return deleted;
   }
 

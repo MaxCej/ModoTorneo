@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { TournamentDocument } from '../../domain';
+import {
+  createTournament,
+  type TournamentCreatedPayload,
+  type TournamentDocument,
+} from '../../domain';
+import { CREATED_PAYLOAD, uuid } from '../../domain/fixtures/builders';
 import fixture from '../../domain/fixtures/top4-8players.json';
 import { FakeGitHub } from '../../test/fakeGitHub';
+import { ModoTorneoDb } from '../db';
 import { GitHubBackend, tournamentFileText, tournamentPath } from './githubBackend';
 
 const TOKEN = 'github_pat_backend_test';
@@ -12,15 +18,39 @@ let dbCount = 0;
 
 function setup() {
   dbCount += 1;
+  const dbName = `test-github-backend-${dbCount}`;
   const fake = new FakeGitHub({ token: TOKEN });
-  const backend = new GitHubBackend({
-    owner: fake.owner,
-    repo: fake.repo,
-    token: TOKEN,
-    fetch: fake.fetch,
-    dbName: `test-github-backend-${dbCount}`,
-  });
-  return { fake, backend };
+  /** A new backend on the same repository and cache database, like a page reload. */
+  const open = (fetchFn: typeof fetch = fake.fetch, name = dbName) =>
+    new GitHubBackend({
+      owner: fake.owner,
+      repo: fake.repo,
+      token: TOKEN,
+      fetch: fetchFn,
+      dbName: name,
+    });
+  return { fake, backend: open(), open, dbName };
+}
+
+let idCount = 0;
+
+function newDoc(overrides: Partial<TournamentCreatedPayload>): TournamentDocument {
+  const result = createTournament(
+    { ...CREATED_PAYLOAD, ...overrides },
+    { now: () => '2026-10-11T20:00:00.000Z', newId: () => uuid(7000 + ++idCount) },
+  );
+  if (!result.ok) {
+    throw new Error(`expected ok, got ${JSON.stringify(result.error)}`);
+  }
+  return result.value.doc;
+}
+
+/** Reads of single tournament files among the requests after index `from`. */
+function fileReads(fake: FakeGitHub, from = 0): string[] {
+  return fake.requests
+    .slice(from)
+    .filter((r) => r.method === 'GET' && r.path.startsWith('tournaments/'))
+    .map((r) => r.path);
 }
 
 function fixtureDoc(): TournamentDocument {
@@ -188,5 +218,142 @@ describe('GitHubBackend tournaments', () => {
     fake.rateLimited = true;
     const limited = await backend.loadTournament(ID);
     expect(limited.ok || limited.error.code).toBe('UNAVAILABLE');
+  });
+});
+
+describe('GitHubBackend listTournaments', () => {
+  it('returns an empty list for an empty repository', async () => {
+    const { fake, backend } = setup();
+    expect(await backend.listTournaments()).toEqual({ ok: true, value: [] });
+    expect(fake.requests.map((r) => r.path)).toEqual(['tournaments']);
+  });
+
+  it('lists summaries sorted by date descending, then name', async () => {
+    const { backend } = setup();
+    for (const doc of [
+      newDoc({ name: 'Beta', date: '2026-10-01' }),
+      newDoc({ name: 'Alpha', date: '2026-10-01' }),
+      newDoc({ name: 'Zeta', date: '2026-10-09' }),
+    ]) {
+      await backend.saveTournament(doc, null);
+    }
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value.map((s) => s.name)).toEqual(['Zeta', 'Alpha', 'Beta']);
+  });
+
+  it('reads no file whose SHA matches the cache', async () => {
+    const { fake, backend, open } = setup();
+    await backend.saveTournament(newDoc({ name: 'One' }), null);
+    await backend.saveTournament(newDoc({ name: 'Two' }), null);
+    // Saves fill the cache, so even the first list after a reload reads no file.
+    const before = fake.requests.length;
+    const listed = await open().listTournaments();
+    expect(listed.ok && listed.value).toHaveLength(2);
+    expect(fileReads(fake, before)).toEqual([]);
+  });
+
+  it('reads exactly the files whose SHA changed', async () => {
+    const { fake, backend, open } = setup();
+    const one = newDoc({ name: 'One' });
+    const two = newDoc({ name: 'Two' });
+    await backend.saveTournament(one, null);
+    await backend.saveTournament(two, null);
+    // Another device renames "Two": its file changes behind this cache.
+    const renamed = { ...newDoc({ name: 'Two renamed' }), id: two.id };
+    fake.setFile(tournamentPath(two.id), tournamentFileText(renamed));
+    const before = fake.requests.length;
+    const listed = await open().listTournaments();
+    expect(fileReads(fake, before)).toEqual([tournamentPath(two.id)]);
+    expect(listed.ok && listed.value.map((s) => s.name).sort()).toEqual(['One', 'Two renamed']);
+    expect(listed.ok && listed.value.find((s) => s.id === two.id)?.revision).toBe(
+      fake.shaOf(tournamentPath(two.id)),
+    );
+    // The new SHA is cached now.
+    const again = fake.requests.length;
+    await open().listTournaments();
+    expect(fileReads(fake, again)).toEqual([]);
+  });
+
+  it('drops the cache row of a file no longer listed', async () => {
+    const { fake, backend, dbName } = setup();
+    const one = newDoc({ name: 'One' });
+    const two = newDoc({ name: 'Two' });
+    await backend.saveTournament(one, null);
+    await backend.saveTournament(two, null);
+    fake.removeFile(tournamentPath(two.id));
+    const listed = await backend.listTournaments();
+    expect(listed.ok && listed.value.map((s) => s.id)).toEqual([one.id]);
+    const db = new ModoTorneoDb(dbName);
+    expect((await db.githubSummaries.toArray()).map((row) => row.id)).toEqual([one.id]);
+    db.close();
+  });
+
+  it('removes the cache row on delete', async () => {
+    const { backend, dbName } = setup();
+    const doc = newDoc({ name: 'One' });
+    const saved = await backend.saveTournament(doc, null);
+    await backend.deleteTournament(doc.id, saved.ok ? saved.value.revision : '');
+    const db = new ModoTorneoDb(dbName);
+    expect(await db.githubSummaries.count()).toBe(0);
+    db.close();
+  });
+
+  it('fails the whole call with INVALID_DOCUMENT naming the invalid file', async () => {
+    const { fake, backend } = setup();
+    await backend.saveTournament(newDoc({ name: 'One' }), null);
+    const broken = uuid(9999);
+    fake.setFile(tournamentPath(broken), '{ "broken": true }');
+    const list = await backend.listTournaments();
+    expect(list.ok || list.error.code).toBe('INVALID_DOCUMENT');
+    expect(list.ok || list.error.message).toContain(tournamentPath(broken));
+  });
+
+  it('ignores files that are not <uuid>.json', async () => {
+    const { fake, backend } = setup();
+    const doc = newDoc({ name: 'One' });
+    await backend.saveTournament(doc, null);
+    fake.setFile('tournaments/README.md', '# notes');
+    fake.setFile('tournaments/notes.json', '{}');
+    fake.setFile(`tournaments/archive/${uuid(1)}.json`, '{}');
+    fake.setFile('README.md', '# data');
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value.map((s) => s.id)).toEqual([doc.id]);
+  });
+
+  it('reads at most 4 files in parallel', async () => {
+    const { fake, backend, open } = setup();
+    for (let i = 0; i < 9; i += 1) {
+      await backend.saveTournament(newDoc({ name: `T${i}` }), null);
+    }
+    let running = 0;
+    let peak = 0;
+    const slowFetch: typeof fetch = async (input, init) => {
+      running += 1;
+      peak = Math.max(peak, running);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      try {
+        return await fake.fetch(input, init);
+      } finally {
+        running -= 1;
+      }
+    };
+    // A fresh cache database: every file must be read.
+    dbCount += 1;
+    const cold = open(slowFetch, `test-github-backend-${dbCount}`);
+    const before = fake.requests.length;
+    const list = await cold.listTournaments();
+    expect(list.ok && list.value).toHaveLength(9);
+    expect(fileReads(fake, before)).toHaveLength(9);
+    expect(peak).toBe(4);
+  });
+
+  it('returns UNAUTHORIZED and UNAVAILABLE from the listing', async () => {
+    const { fake, backend } = setup();
+    fake.token = 'rotated';
+    const rejected = await backend.listTournaments();
+    expect(rejected.ok || rejected.error.code).toBe('UNAUTHORIZED');
+    fake.offline = true;
+    const offline = await backend.listTournaments();
+    expect(offline.ok || offline.error.code).toBe('UNAVAILABLE');
   });
 });

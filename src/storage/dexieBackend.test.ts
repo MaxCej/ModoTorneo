@@ -272,6 +272,39 @@ describe('DexieBackend tournaments', () => {
   });
 });
 
+describe('DexieBackend version 3 upgrade', () => {
+  it('opens a version 2 database at version 3 with rows unchanged and an empty cache', async () => {
+    const { dbName } = freshBackend();
+    const doc = fixtureDoc();
+    const row = {
+      id: doc.id,
+      doc,
+      revision: 3,
+      name: 'Friday Night Magic',
+      date: '2026-10-11',
+      format: 'modern',
+      status: 'finished',
+      eventCount: doc.events.length,
+      playerCount: 8,
+      updatedAt: NOW,
+    };
+    const v2 = new Dexie(dbName);
+    v2.version(2).stores({
+      tournaments: 'id, date, format, status, updatedAt',
+      players: 'id, name',
+    });
+    await v2.table('tournaments').add(row);
+    v2.close();
+
+    const raw = new ModoTorneoDb(dbName);
+    await raw.open();
+    expect(raw.verno).toBe(3);
+    expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual(row);
+    expect(await raw.githubSummaries.count()).toBe(0);
+    raw.close();
+  });
+});
+
 describe('DexieBackend version 2 upgrade', () => {
   /** A version 1 database (SPEC 03 schema) with rows that have no `playerCount`. */
   async function seedVersion1(dbName: string, rows: Array<Record<string, unknown>>) {
@@ -308,7 +341,8 @@ describe('DexieBackend version 2 upgrade', () => {
 
     const raw = new ModoTorneoDb(dbName);
     await raw.open();
-    expect(raw.verno).toBe(2);
+    // Version 3 (SPEC 09) runs after the version 2 upgrade.
+    expect(raw.verno).toBe(3);
     expect((await raw.tournaments.get(TOURNAMENT_ID))?.playerCount).toBe(8);
     raw.close();
   });
