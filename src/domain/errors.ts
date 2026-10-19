@@ -19,7 +19,8 @@ export type DomainErrorCode =
   | 'TOP_CUT_DRAW'
   | 'INVALID_ROLLBACK_TARGET'
   | 'INVALID_DETAILS'
-  | 'INVALID_SWAP';
+  | 'INVALID_SWAP'
+  | 'NO_OPEN_ROUND';
 
 export type DomainError = { code: DomainErrorCode; message: string; seq?: number };
 

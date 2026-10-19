@@ -37,6 +37,7 @@ export {
   type PairingWarning,
 } from './pairing';
 export { matchPoints, playerRecords, type PlayerRecord } from './points';
+export { redoPairingCommands, type RedoPairings } from './redoPairings';
 export { effectiveEvents, reduce, stateAt } from './reduce';
 export { err, ok, type Result } from './result';
 export { lastClosedSwissRound, PERCENTAGE_FLOOR, standings, type Standing } from './standings';
