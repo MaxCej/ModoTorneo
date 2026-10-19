@@ -18,6 +18,14 @@ export {
 } from './commands';
 export { parseTournamentDocument } from './document';
 export { CorruptLogError, type DomainError, type DomainErrorCode } from './errors';
+export {
+  historyOf,
+  rollbackPreview,
+  type History,
+  type HistoryEntry,
+  type MatchRef,
+  type RollbackPreview,
+} from './history';
 export { newId } from './ids';
 export { parseImportFile, type ParsedImport } from './importFile';
 export { compareLogs, playersFromDocument, type LogComparison } from './merge';
