@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  BestOfSchema,
   FormatSchema,
   IsoDateSchema,
   IsoDateTimeSchema,
@@ -96,6 +97,7 @@ export type RoundClosedPayload = z.infer<typeof RoundClosedPayloadSchema>;
 
 export const TopCutStartedPayloadSchema = z.object({
   size: TopCutSizeSchema,
+  bestOf: BestOfSchema.optional(), // missing = 3 (documents written before SPEC 08)
 });
 export type TopCutStartedPayload = z.infer<typeof TopCutStartedPayloadSchema>;
 

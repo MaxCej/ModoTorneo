@@ -114,7 +114,12 @@ export function apply(
       };
 
     case 'TopCutStarted':
-      return { ...next, status: 'topCut', topCut: event.payload.size };
+      return {
+        ...next,
+        status: 'topCut',
+        topCut: event.payload.size,
+        topCutBestOf: event.payload.bestOf ?? 3,
+      };
 
     case 'TournamentFinished':
       return { ...next, status: 'finished' };

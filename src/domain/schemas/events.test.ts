@@ -127,8 +127,12 @@ const samples: Record<TournamentEventType, Sample> = {
     invalid: { 'non-integer round': { round: 1.5 } },
   },
   TopCutStarted: {
-    valid: { size: 16 },
-    invalid: { 'size 0': { size: 0 }, 'size 6': { size: 6 } },
+    valid: { size: 16, bestOf: 5 },
+    invalid: {
+      'size 0': { size: 0 },
+      'size 6': { size: 6 },
+      'bestOf 4': { size: 8, bestOf: 4 },
+    },
   },
   TournamentFinished: {
     valid: {},
@@ -168,6 +172,11 @@ describe('TournamentEventSchema', () => {
       expect(TournamentEventSchema.parse(event)).toEqual(event);
     },
   );
+
+  it('accepts TopCutStarted without bestOf (written before SPEC 08)', () => {
+    const event = { ...envelope, type: 'TopCutStarted', payload: { size: 4 } };
+    expect(TournamentEventSchema.parse(event)).toEqual(event);
+  });
 
   it('rejects an unknown type', () => {
     expect(

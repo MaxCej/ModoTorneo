@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { BestOf } from './common';
 
 const GameCountSchema = z.number().int().min(0).max(3);
 
@@ -41,7 +42,7 @@ export const IMPLICIT_BYE_RESULT: MatchResult = { winsA: 2, winsB: 0, draws: 0, 
  * and at most `bestOf` games in total (draws included). Intentional draws and unplayed matches
  * always fit. Stricter than `MatchResultSchema`, which stays loose for stored and imported data.
  */
-export function fitsBestOf(result: MatchResult, bestOf: 3 | 5): boolean {
+export function fitsBestOf(result: MatchResult, bestOf: BestOf): boolean {
   if (result.kind !== 'played') {
     return true;
   }

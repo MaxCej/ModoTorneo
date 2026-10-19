@@ -417,7 +417,16 @@ describe('reduce: top cut and finish', () => {
 
   it('records the chosen size and moves status to topCut on TopCutStarted', () => {
     const { events } = swissDone().add('TopCutStarted', { size: 4 });
-    expect(reduce(events, TOURNAMENT_ID)).toMatchObject({ status: 'topCut', topCut: 4 });
+    expect(reduce(events, TOURNAMENT_ID)).toMatchObject({
+      status: 'topCut',
+      topCut: 4,
+      topCutBestOf: 3,
+    });
+  });
+
+  it('records bestOf 5 from TopCutStarted', () => {
+    const { events } = swissDone().add('TopCutStarted', { size: 4, bestOf: 5 });
+    expect(reduce(events, TOURNAMENT_ID).topCutBestOf).toBe(5);
   });
 
   it('adds top cut rounds with stage topCut and finishes the tournament', () => {

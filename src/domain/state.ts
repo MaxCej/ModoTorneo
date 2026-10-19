@@ -1,4 +1,4 @@
-import type { Format, IsoDate, TopCutSize, Uuid } from './schemas/common';
+import type { BestOf, Format, IsoDate, TopCutSize, Uuid } from './schemas/common';
 import type { Pairing, TournamentCreated } from './schemas/events';
 import type { MatchResult } from './schemas/matchResult';
 
@@ -30,6 +30,7 @@ export type TournamentState = {
   format: Format;
   swissRounds: number | null; // null until fixed by the first swiss RoundPaired, or set by the organizer
   topCut: TopCutSize | null; // null until TopCutStarted
+  topCutBestOf: BestOf | null; // null until TopCutStarted; missing bestOf = 3
   status: TournamentStatus;
   players: Record<Uuid, PlayerEntry>;
   rounds: Round[];
@@ -49,6 +50,7 @@ export function initialState(tournamentId: Uuid, event: TournamentCreated): Tour
     id: tournamentId,
     ...event.payload,
     topCut: null,
+    topCutBestOf: null,
     status: 'setup',
     players: {},
     rounds: [],
