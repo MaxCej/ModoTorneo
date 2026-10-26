@@ -66,7 +66,18 @@
       "topCut": "Top cut",
       "swissWithByes_one": "{{record}} +{{count}} bye",
       "swissWithByes_other": "{{record}} +{{count}} byes",
-      "rankOf": "{{rank}} of {{players}}"
+      "rankOf": "{{rank}} of {{players}}",
+      "rename": "Rename"
+    },
+    "rename": {
+      "title": "Rename player",
+      "name": "Name",
+      "note": "Past tournaments keep the name they were played with.",
+      "duplicate": "Another player is already called {{name}}.",
+      "failed": "Could not rename ({{code}}): {{message}}",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saveAnyway": "Rename anyway"
     }
   },
   "newTournament": {

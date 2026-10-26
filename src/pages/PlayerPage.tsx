@@ -1,6 +1,7 @@
 import {
   Anchor,
   Badge,
+  Button,
   Card,
   Container,
   Group,
@@ -15,8 +16,10 @@ import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { playerProfile, type PlayerHistoryRow, type PlayerTotals } from '../domain';
 import { readSettings } from '../storage';
+import { usePlayersStore } from '../store/playersStore';
 import { StorageErrorAlert } from './StorageErrorAlert';
 import { useStatsFormat } from './players/format';
+import { RenamePlayerModal } from './players/RenamePlayerModal';
 import { usePlayersData } from './players/usePlayersData';
 
 /** One registry player's profile: totals, per format and tournament history, from summaries. */
@@ -26,6 +29,7 @@ export function PlayerPage() {
   const { id } = useParams();
   const data = usePlayersData();
   const [settings] = useState(readSettings);
+  const [renaming, setRenaming] = useState(false);
 
   const player = data.status === 'ready' ? data.players.find((p) => p.id === id) : undefined;
   const profile = useMemo(
@@ -66,7 +70,20 @@ export function PlayerPage() {
   return (
     <Container py="xl">
       <Stack>
-        <Title order={1}>{player.name}</Title>
+        <Group justify="space-between">
+          <Title order={1}>{player.name}</Title>
+          <Button variant="default" onClick={() => setRenaming(true)}>
+            {t('players.profile.rename')}
+          </Button>
+        </Group>
+        {renaming && (
+          <RenamePlayerModal
+            player={player}
+            otherNames={data.players.filter((p) => p.id !== player.id).map((p) => p.name)}
+            onSave={(name) => usePlayersStore.getState().renamePlayer(player.id, name)}
+            onClose={() => setRenaming(false)}
+          />
+        )}
 
         <Card withBorder>
           <Table

@@ -1,5 +1,5 @@
 import { MantineProvider } from '@mantine/core';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TournamentDocument } from '../domain';
@@ -128,6 +128,29 @@ describe('PlayerPage', () => {
       'href',
       `/tournaments/${fixture.id}`,
     );
+  });
+
+  it('renames the player from the profile and keeps the tournament documents', async () => {
+    await seed();
+    renderPage(P1);
+    await screen.findByRole('heading', { name: 'Alice', level: 1 });
+    const before = await backend.loadTournament(PAUPER_ID);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+      target: { value: 'Alicia' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('heading', { name: 'Alicia', level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const players = await backend.listPlayers();
+    expect(players.ok && players.value.find((p) => p.id === P1)).toEqual({
+      id: P1,
+      name: 'Alicia',
+      createdAt: NOW,
+    });
+    expect(await backend.loadTournament(PAUPER_ID)).toEqual(before);
   });
 
   it('shows "Player not found" for an id outside the registry', async () => {
