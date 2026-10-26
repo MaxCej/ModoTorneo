@@ -4,7 +4,7 @@ import type { StorageError, StorageSettings } from '../storage';
 
 /**
  * A list page's load error, worded for the active backend. `page` picks the SPEC 03 texts
- * ("home" or "data") kept for local storage.
+ * ("home" or "data", and "players" from SPEC 10) kept for local storage.
  */
 export function StorageErrorAlert({
   error,
@@ -13,7 +13,7 @@ export function StorageErrorAlert({
 }: {
   error: StorageError;
   settings: StorageSettings;
-  page: 'home' | 'data';
+  page: 'home' | 'data' | 'players';
 }) {
   const { t } = useTranslation();
   if (error.code === 'UNAUTHORIZED') {

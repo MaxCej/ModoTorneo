@@ -58,6 +58,25 @@ describe('AppLayout', () => {
     expect(nav().getByRole('link', { name: 'Tournaments' })).not.toHaveAttribute('data-active');
   });
 
+  it('navigates to /#/players with the Players link and keeps it active on a profile', async () => {
+    renderAt('#/');
+    await screen.findByRole('heading', { level: 1 });
+    expect(nav().getByRole('link', { name: 'Players' })).toHaveAttribute('href', '#/players');
+
+    fireEvent.click(nav().getByRole('link', { name: 'Players' }));
+    expect(await screen.findByRole('heading', { name: 'Players', level: 1 })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/players');
+    expect(nav().getByRole('link', { name: 'Players' })).toHaveAttribute('data-active', 'true');
+    expect(nav().getByRole('link', { name: 'Tournaments' })).not.toHaveAttribute('data-active');
+  });
+
+  it('marks Players active on /#/players/:id', async () => {
+    renderAt('#/players/00000000-0000-4000-8000-000000000001');
+    await screen.findByRole('heading', { level: 1 });
+    expect(nav().getByRole('link', { name: 'Players' })).toHaveAttribute('data-active', 'true');
+    expect(nav().getByRole('link', { name: 'Tournaments' })).not.toHaveAttribute('data-active');
+  });
+
   it('renders the not-found page inside the shell', async () => {
     renderAt('#/does-not-exist');
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();

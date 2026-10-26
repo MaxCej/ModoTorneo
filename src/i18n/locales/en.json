@@ -5,6 +5,7 @@
   },
   "nav": {
     "tournaments": "Tournaments",
+    "players": "Players",
     "data": "Data",
     "settings": "Settings",
     "toggle": "Toggle navigation",
@@ -22,6 +23,28 @@
       "format": "Format",
       "status": "Status",
       "players": "Players"
+    }
+  },
+  "players": {
+    "title": "Players",
+    "search": "Search",
+    "tableLabel": "Players",
+    "empty": "No players yet. Players are added when you register them in a tournament.",
+    "noMatch": "No player matches the search.",
+    "unavailable": "Local storage is unavailable in this browser.",
+    "loadFailed": "Could not load players ({{code}}): {{message}}",
+    "none": "—",
+    "columns": {
+      "name": "Name",
+      "tournaments": "Tournaments",
+      "record": "Record",
+      "matchWinRate": "Match win %",
+      "gameWinRate": "Game win %",
+      "lastPlayed": "Last played"
+    },
+    "sortIndicator": {
+      "ascending": "▲",
+      "descending": "▼"
     }
   },
   "newTournament": {
