@@ -173,7 +173,8 @@ describe('tournamentStore dispatch', () => {
 
   it('reloads and sets a saveFailed notice on any other save error', async () => {
     const { backend, store, doc } = await openStore();
-    const error = { code: 'UNAVAILABLE' as const, message: 'Disk full' };
+    // UNAVAILABLE keeps the document since SPEC 09; UNAUTHORIZED still reloads.
+    const error = { code: 'UNAUTHORIZED' as const, message: 'Bad credentials' };
     vi.spyOn(backend, 'saveTournament').mockResolvedValueOnce({ ok: false, error });
 
     store.getState().dispatch(register(P1, 'Alice'));
@@ -185,6 +186,89 @@ describe('tournamentStore dispatch', () => {
       revision: '1',
     });
     expect(store.getState().state?.players).toEqual({});
+  });
+
+  it('keeps the document on UNAVAILABLE and refuses commands until retrySave', async () => {
+    const { backend, store } = await openStore();
+    const error = { code: 'UNAVAILABLE' as const, message: 'Failed to fetch' };
+    const saveSpy = vi.spyOn(backend, 'saveTournament').mockResolvedValueOnce({ ok: false, error });
+
+    expect(store.getState().dispatch(register(P1, 'Alice')).ok).toBe(true);
+    // Queued behind the failing save: dropped, but its change stays in the document.
+    expect(store.getState().dispatch(register(P2, 'Bob')).ok).toBe(true);
+    await idle(store);
+
+    expect(store.getState()).toMatchObject({
+      status: 'ready',
+      notice: { kind: 'unsaved', error },
+      revision: '1',
+    });
+    expect(Object.keys(store.getState().state?.players ?? {})).toEqual([P1, P2]);
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+
+    const kept = store.getState().doc;
+    expect(store.getState().dispatch(register(P3, 'Carol'))).toEqual({
+      ok: false,
+      error: { code: 'WRONG_STATUS', message: 'Not saved yet; retry the save first' },
+    });
+    expect(store.getState().doc).toBe(kept);
+
+    // The backend works again: the kept document is saved with the last saved revision.
+    store.getState().retrySave();
+    await idle(store);
+    expect(saveSpy).toHaveBeenLastCalledWith(kept, '1');
+    expect(store.getState()).toMatchObject({ notice: null, revision: '2' });
+    const stored = unwrap(await backend.loadTournament(kept!.id));
+    expect(stored.doc).toEqual(kept);
+
+    // The next command saves normally.
+    expect(store.getState().dispatch(register(P3, 'Carol')).ok).toBe(true);
+    await idle(store);
+    expect(store.getState().revision).toBe('3');
+    expect(Object.keys(unwrap(await backend.loadTournament(kept!.id)).state.players)).toEqual([
+      P1,
+      P2,
+      P3,
+    ]);
+  });
+
+  it('sets the unsaved notice again when the retry fails too', async () => {
+    const { backend, store } = await openStore();
+    const error = { code: 'UNAVAILABLE' as const, message: 'offline' };
+    vi.spyOn(backend, 'saveTournament')
+      .mockResolvedValueOnce({ ok: false, error })
+      .mockResolvedValueOnce({ ok: false, error });
+    store.getState().dispatch(register(P1, 'Alice'));
+    await idle(store);
+    store.getState().retrySave();
+    await idle(store);
+    expect(store.getState()).toMatchObject({ notice: { kind: 'unsaved', error }, revision: '1' });
+    expect(Object.keys(store.getState().state?.players ?? {})).toEqual([P1]);
+  });
+
+  it('reloads with the conflict notice when a retry finds the save already stored', async () => {
+    const { backend, store } = await openStore();
+    // The first save reached the backend but its answer was lost.
+    const realSave = backend.saveTournament.bind(backend);
+    vi.spyOn(backend, 'saveTournament').mockImplementationOnce(async (d, rev) => {
+      await realSave(d, rev);
+      return { ok: false, error: { code: 'UNAVAILABLE', message: 'response lost' } };
+    });
+    store.getState().dispatch(register(P1, 'Alice'));
+    await idle(store);
+    store.getState().retrySave();
+    await idle(store);
+    await vi.waitFor(() => expect(store.getState().notice).toEqual({ kind: 'conflict' }));
+    expect(store.getState().revision).toBe('2');
+    expect(Object.keys(store.getState().state?.players ?? {})).toEqual([P1]);
+  });
+
+  it('ignores retrySave without an unsaved notice', async () => {
+    const { backend, store } = await openStore();
+    const saveSpy = vi.spyOn(backend, 'saveTournament');
+    store.getState().retrySave();
+    await idle(store);
+    expect(saveSpy).not.toHaveBeenCalled();
   });
 
   it('clears the notice', async () => {

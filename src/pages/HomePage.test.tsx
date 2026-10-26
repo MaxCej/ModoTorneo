@@ -1,11 +1,12 @@
 import { MantineProvider } from '@mantine/core';
 import { render, screen, within } from '@testing-library/react';
 import { HashRouter } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TournamentDocument } from '../domain';
 import { TOURNAMENT_ID } from '../domain/fixtures/builders';
 import fixture from '../domain/fixtures/top4-8players.json';
-import { DexieBackend, type StorageBackend } from '../storage';
+import { DexieBackend, GitHubBackend, writeSettings, type StorageBackend } from '../storage';
+import { FakeGitHub } from '../test/fakeGitHub';
 import { HomePage } from './HomePage';
 
 const mocks = vi.hoisted(() => ({ backend: null as StorageBackend | null }));
@@ -100,5 +101,54 @@ describe('HomePage', () => {
     expect(
       await screen.findByText('Could not load tournaments (INVALID_DOCUMENT): broken'),
     ).toBeInTheDocument();
+  });
+});
+
+describe('HomePage with GitHub storage', () => {
+  const TOKEN = 'github_pat_home';
+  let fake: FakeGitHub;
+
+  beforeEach(() => {
+    fake = new FakeGitHub({ token: TOKEN });
+    writeSettings({ backend: 'github', owner: fake.owner, repo: fake.repo, token: TOKEN });
+    dbCount += 1;
+    mocks.backend = new GitHubBackend({
+      owner: fake.owner,
+      repo: fake.repo,
+      token: TOKEN,
+      fetch: fake.fetch,
+      dbName: `test-home-page-${dbCount}`,
+    });
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it('lists tournaments stored on GitHub', async () => {
+    await seedFixture();
+    renderPage();
+    expect(await screen.findByRole('link', { name: 'Friday Night Magic' })).toBeInTheDocument();
+  });
+
+  it('shows the rejected-token alert with a link to Settings on a 401', async () => {
+    fake.token = 'rotated';
+    renderPage();
+    expect(
+      await screen.findByText('GitHub rejected the token. Check it on the Settings page.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Settings' })).toHaveAttribute(
+      'href',
+      '#/settings',
+    );
+  });
+
+  it('shows the GitHub text for UNAVAILABLE', async () => {
+    fake.offline = true;
+    renderPage();
+    expect(await screen.findByText('Cannot reach GitHub: Failed to fetch')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Local storage is unavailable in this browser.'),
+    ).not.toBeInTheDocument();
   });
 });

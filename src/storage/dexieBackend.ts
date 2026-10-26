@@ -12,7 +12,7 @@ import {
   type Uuid,
 } from '../domain';
 import { ModoTorneoDb, type TournamentRow } from './db';
-import { toSummary } from './summary';
+import { comparePlayers, compareSummaries, toSummary } from './summary';
 import type {
   Revision,
   StorageBackend,
@@ -39,21 +39,13 @@ function invalidDocument(message: string, cause: DomainError): StorageError {
 }
 
 /** Parses a player with `PlayerSchema`; failure is `INVALID_PLAYER` with an `INVALID_SCHEMA` cause. */
-function parsePlayer(value: unknown, context: string): Result<Player, StorageError> {
+export function parsePlayer(value: unknown, context: string): Result<Player, StorageError> {
   const parsed = PlayerSchema.safeParse(value);
   if (parsed.success) {
     return ok(parsed.data);
   }
   const cause: DomainError = { code: 'INVALID_SCHEMA', message: z.prettifyError(parsed.error) };
   return err({ code: 'INVALID_PLAYER', message: `${context}: ${cause.message}`, cause });
-}
-
-/** Name order. Fixed to English (the only UI locale) so it does not depend on the runtime. */
-const collator = new Intl.Collator('en');
-
-/** Final tie-breaker on ids, so equal names still come back in a deterministic order. */
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function rowSummary(row: TournamentRow): TournamentSummary {
@@ -95,12 +87,7 @@ export class DexieBackend implements StorageBackend {
   listTournaments(): Promise<Result<TournamentSummary[], StorageError>> {
     return this.run(async () => {
       const rows = await this.db.tournaments.toArray();
-      rows.sort(
-        (a, b) =>
-          (a.date === b.date ? 0 : a.date < b.date ? 1 : -1) ||
-          collator.compare(a.name, b.name) ||
-          byCodeUnit(a.id, b.id),
-      );
+      rows.sort(compareSummaries);
       return ok(rows.map(rowSummary));
     });
   }
@@ -183,7 +170,7 @@ export class DexieBackend implements StorageBackend {
         }
         players.push(parsed.value);
       }
-      players.sort((a, b) => collator.compare(a.name, b.name) || byCodeUnit(a.id, b.id));
+      players.sort(comparePlayers);
       return ok(players);
     });
   }

@@ -175,8 +175,8 @@ The top cut is optional single elimination, started after any closed swiss round
 
 ## Screens
 
-Every page renders inside one app shell with navigation (Tournaments, Data). Pages are loaded
-lazily, one chunk each.
+Every page renders inside one app shell with navigation (Tournaments, Data, Settings). Pages are
+loaded lazily, one chunk each.
 
 - **Tournaments (`/#/`):** every stored tournament with date, format, status and player count,
   read from the summary rows only. "New tournament" opens the create form.
@@ -217,18 +217,24 @@ lazily, one chunk each.
     only. A name that already exists needs a second Enter. While running, late entries are
     allowed and "Drop" asks for confirmation.
   - **Autosave:** every change is applied at once and saved in order. If another tab saved first,
-    or the tournament was deleted elsewhere, the page reloads the stored version and says so.
-- **Data (`/#/data`):** export, import and delete (see below).
+    or the tournament was deleted elsewhere, the page reloads the stored version and says so. If
+    the save cannot reach the storage (no network), the change stays on the page with "Not saved"
+    and a "Retry save" button; no other change is accepted until it is saved.
+- **Data (`/#/data`):** the active storage, export, import and delete (see below).
+- **Settings (`/#/settings`):** choose where data is stored: this browser or a GitHub
+  repository (see [GitHub storage](#github-storage)).
 
 ## Storage
 
 The storage layer lives in `src/storage/`. Callers use the `StorageBackend` interface returned by
-`getStorage()`; today it is backed by IndexedDB through Dexie (database `modotorneo`). A GitHub
-backend will implement the same interface later.
+`getStorage()`. Two backends implement it: this browser (IndexedDB through Dexie, database
+`modotorneo`, the default) and a GitHub repository. The backend is chosen on the Settings page
+and read once per page load (`localStorage` key `modotorneo.storage`).
 
 - **Tables:** `tournaments` (one row per tournament: the whole `TournamentDocument` plus summary
   fields recomputed on every save, including `playerCount`) and `players` (the global player
-  registry). Schema changes are new Dexie versions with an upgrade function (now version 2).
+  registry). Schema changes are new Dexie versions with an upgrade function (now version 3, which
+  adds the GitHub summary cache `githubSummaries`).
 - **Validation:** every document is checked with `parseTournamentDocument` on save and on load. A
   corrupted row is reported as `INVALID_DOCUMENT`, never loaded silently.
   Players are checked with `PlayerSchema` the same way; an invalid player is `INVALID_PLAYER`.
@@ -237,9 +243,58 @@ backend will implement the same interface later.
 - **Persistence:** the app asks the browser for persistent storage on start
   (`navigator.storage.persist()`). Browsers can still clear site data, so export backups regularly.
 
+### GitHub storage
+
+With GitHub storage every save is one commit to a private data repository, so the whole history
+is versioned and available on any device.
+
+**Repository layout** (default branch):
+
+```text
+tournaments/<id>.json   # one TournamentDocument per tournament (the same file as a single export)
+players.json            # { kind: 'modotorneo-players', schemaVersion: 1, players } sorted by id
+```
+
+**Set up:**
+
+1. Create a new **private** repository on GitHub (for example `mtg-data`). It can stay empty.
+2. Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new):
+   - Repository access: **Only select repositories**, and pick the data repository only.
+   - Repository permissions: **Contents: Read and write** (Metadata: Read-only is added
+     automatically). Nothing else.
+   - An expiration date you are comfortable with. When it expires, create a new one and connect
+     again.
+3. In ModoTorneo, open **Settings**, enter the owner, the repository name and the token, and click
+   **Test connection**. A public repository works but shows a warning: player names will be
+   visible to anyone.
+4. Click **Connect**. The app reloads and now reads and writes the repository.
+
+**Moving data** between this browser and GitHub: before connecting, export a full backup on the
+Data page; after connecting, import it. The same works in the other direction. Connect and
+Disconnect never touch the data stored in this browser.
+
+**How it works:**
+
+- Requests go straight from the browser to the GitHub REST API (Contents API) with `fetch`; there
+  is no server. The token is kept only in this browser's `localStorage`, sent only in the
+  `Authorization` header, and never written to files, messages or exports. "Disconnect" removes
+  it.
+- The blob SHA of each file is its revision: GitHub refuses a write with an old SHA, so another
+  device's save is detected as a conflict and the page reloads the stored version.
+- The tournament list reads the `tournaments/` folder and caches each summary in IndexedDB by
+  SHA, so only files that changed are downloaded.
+- Commit messages: `Save <tournament> (<n> events)`, `Delete <tournament>`,
+  `Save player <name>`.
+
+**Errors:** a rejected token shows "GitHub rejected the token" with a link to Settings. No network,
+a GitHub outage or the rate limit show "Cannot reach GitHub"; on the tournament page the unsaved
+change is kept until "Retry save" succeeds.
+
 ### Data page and file formats
 
-The Data page (`/#/data`) lists stored tournaments and handles export, import and delete.
+The Data page (`/#/data`) shows the active storage, lists stored tournaments and handles export,
+import and delete. It works the same on both backends. The persistent storage line shows only
+with browser storage.
 
 - **One tournament:** `modotorneo-<slug>-<date>.json`, the plain `TournamentDocument`.
 - **Full backup:** `modotorneo-backup-<YYYY-MM-DD>.json`, a dataset file:
@@ -261,12 +316,12 @@ players.
 
 ## External Integrations
 
-| Service      | Use                                     | Notes                                                     |
-| ------------ | --------------------------------------- | --------------------------------------------------------- |
-| GitHub API   | Persist tournament data in a repository | Requires a personal access token; never commit the token. |
-| Moxfield     | Import decklists from a deck URL        | No official public API; may need a text-export fallback.  |
-| Scryfall API | Card data and images                    | Public API with rate limits.                              |
-| MTGTop8      | Publish results (future)                | No public API known; likely manual export format.         |
+| Service      | Use                                     | Notes                                                       |
+| ------------ | --------------------------------------- | ----------------------------------------------------------- |
+| GitHub API   | Persist tournament data in a repository | Fine-grained token for one repository, kept in the browser. |
+| Moxfield     | Import decklists from a deck URL        | No official public API; may need a text-export fallback.    |
+| Scryfall API | Card data and images                    | Public API with rate limits.                                |
+| MTGTop8      | Publish results (future)                | No public API known; likely manual export format.           |
 
 ## Tech Stack
 
@@ -286,7 +341,8 @@ players.
 | Local storage         | Dexie (IndexedDB)                                                 |
 | UI state              | Zustand                                                           |
 | Forms and dates       | `@mantine/form`, `@mantine/dates` with dayjs                      |
-| Planned (later specs) | Octokit, `vite-plugin-pwa`                                        |
+| GitHub API client     | Plain `fetch` (no Octokit)                                        |
+| Planned (later specs) | `vite-plugin-pwa`                                                 |
 
 ## Development
 
@@ -310,7 +366,6 @@ The roadmap and design decisions live in the specs under `specs/`.
 
 ## Open Questions for Planning
 
-- GitHub auth: personal access token vs OAuth device flow (static sites cannot hold a client secret).
 - Moxfield integration: direct fetch (CORS limits) vs paste-export fallback.
 - Single-TO use vs multiple organizers sharing one data repository.
 - Which formats and tiebreaker rules ship first.
@@ -322,7 +377,8 @@ A full swiss event runs in the browser: registration (registry players and guest
 drops), swiss pairings, result entry, swaps, standings with MTR tiebreakers and finishing, all
 autosaved to IndexedDB. The History tab rolls back to any earlier event, and "Redo pairings"
 re-pairs the open swiss round. An optional Top 4 / 8 / 16 / 32 (best of three or five) runs to a
-final with a bracket and placings. GitHub storage (SPEC 09) is next.
+final with a bracket and placings. Data can be stored in the browser or in a private GitHub
+repository (one commit per save), chosen on the Settings page.
 
 ## License
 

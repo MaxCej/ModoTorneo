@@ -446,7 +446,7 @@ describe('TournamentPage', () => {
     await screen.findByRole('button', { name: 'Edit details' });
     vi.spyOn(backend, 'saveTournament').mockResolvedValueOnce({
       ok: false,
-      error: { code: 'UNAVAILABLE', message: 'Disk full' },
+      error: { code: 'UNAUTHORIZED', message: 'Bad credentials' },
     });
 
     act(() => {
@@ -458,9 +458,40 @@ describe('TournamentPage', () => {
 
     expect(
       await screen.findByText(
-        'Could not save (UNAVAILABLE): Disk full. The last saved version has been loaded.',
+        'Could not save (UNAUTHORIZED): Bad credentials. The last saved version has been loaded.',
       ),
     ).toBeInTheDocument();
+  });
+
+  it('keeps the change on UNAVAILABLE and saves it with Retry save', async () => {
+    await backend.saveTournament(autoDoc(2), null);
+    renderPage();
+    await screen.findByRole('button', { name: 'Edit details' });
+    vi.spyOn(backend, 'saveTournament').mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'UNAVAILABLE', message: 'Failed to fetch' },
+    });
+
+    act(() => {
+      useTournamentStore.getState().dispatch({
+        type: 'TournamentDetailsChanged',
+        payload: { location: 'Mine' },
+      });
+    });
+
+    expect(
+      await screen.findByText('Not saved: Failed to fetch. Your changes are kept on this page.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Not saved')).toBeInTheDocument();
+    expect(screen.getByText('Mine')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
+    expect(screen.queryByText(/^Not saved:/)).not.toBeInTheDocument();
+    const id = useTournamentStore.getState().doc!.id;
+    const stored = await backend.loadTournament(id);
+    expect(stored.ok && stored.value.state.location).toBe('Mine');
   });
 });
 

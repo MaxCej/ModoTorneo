@@ -46,6 +46,18 @@ describe('AppLayout', () => {
     expect(nav().getByRole('link', { name: 'Tournaments' })).toHaveAttribute('data-active', 'true');
   });
 
+  it('navigates to /#/settings with the Settings link', async () => {
+    renderAt('#/');
+    await screen.findByRole('heading', { level: 1 });
+    expect(nav().getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '#/settings');
+
+    fireEvent.click(nav().getByRole('link', { name: 'Settings' }));
+    expect(await screen.findByRole('heading', { name: 'Settings', level: 1 })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/settings');
+    expect(nav().getByRole('link', { name: 'Settings' })).toHaveAttribute('data-active', 'true');
+    expect(nav().getByRole('link', { name: 'Tournaments' })).not.toHaveAttribute('data-active');
+  });
+
   it('renders the not-found page inside the shell', async () => {
     renderAt('#/does-not-exist');
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();

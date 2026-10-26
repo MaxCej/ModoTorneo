@@ -16,7 +16,8 @@ import { getStorage, type Revision, type StorageBackend, type StorageError } fro
 export type SaveNotice =
   | { kind: 'conflict' } // another tab saved first; reloaded
   | { kind: 'notFound' } // the tournament was deleted elsewhere
-  | { kind: 'saveFailed'; error: StorageError };
+  | { kind: 'saveFailed'; error: StorageError }
+  | { kind: 'unsaved'; error: StorageError }; // UNAVAILABLE: the document is kept, retry to save
 
 export type TournamentStoreState = {
   status: 'idle' | 'loading' | 'ready' | 'error';
@@ -33,6 +34,8 @@ export type TournamentStoreState = {
   /** Appends every command or none, with one optimistic update and one save. */
   dispatchAll(commands: readonly [Command, ...Command[]]): Result<TournamentState, DomainError>;
   clearNotice(): void;
+  /** After an `unsaved` notice: saves the kept document with the last saved revision. */
+  retrySave(): void;
 };
 
 function refused(message: string): Result<TournamentState, DomainError> {
@@ -43,6 +46,7 @@ function refused(message: string): Result<TournamentState, DomainError> {
  * The open tournament. `dispatch` and `dispatchAll` apply commands optimistically and queue
  * one save per accepted call. Saves run one at a time, each with the revision returned by the previous one.
  * Any save failure drops the rest of the queue and reloads (or blocks, on NOT_FOUND).
+ * UNAVAILABLE keeps the unsaved document instead and blocks commands until `retrySave` succeeds.
  */
 export function createTournamentStore(backend: StorageBackend, deps?: Deps) {
   return create<TournamentStoreState>()((set, get) => {
@@ -80,6 +84,11 @@ export function createTournamentStore(backend: StorageBackend, deps?: Deps) {
       }
       generation += 1;
       const { error } = result;
+      if (error.code === 'UNAVAILABLE') {
+        // The latest document (with every dropped save) stays on screen for retrySave.
+        set({ notice: { kind: 'unsaved', error } });
+        return;
+      }
       if (error.code === 'NOT_FOUND') {
         deleted = true;
         set({ notice: { kind: 'notFound' } });
@@ -151,9 +160,12 @@ export function createTournamentStore(backend: StorageBackend, deps?: Deps) {
         if (deleted) {
           return refused('Tournament no longer exists');
         }
-        const { doc } = get();
+        const { doc, notice } = get();
         if (doc === null) {
           return refused('No tournament is loaded');
+        }
+        if (notice?.kind === 'unsaved') {
+          return refused('Not saved yet; retry the save first');
         }
         const result = executeAll(doc, commands, deps);
         if (!result.ok) {
@@ -167,6 +179,15 @@ export function createTournamentStore(backend: StorageBackend, deps?: Deps) {
 
       clearNotice() {
         set({ notice: null });
+      },
+
+      retrySave() {
+        const { doc, notice } = get();
+        if (notice?.kind !== 'unsaved' || doc === null) {
+          return;
+        }
+        set({ notice: null });
+        enqueue(doc);
       },
     };
   });

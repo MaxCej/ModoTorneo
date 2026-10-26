@@ -6,6 +6,7 @@ export * from './schemas/document';
 export * from './schemas/events';
 export * from './schemas/matchResult';
 export * from './schemas/player';
+export * from './schemas/playersFile';
 
 export {
   createTournament,

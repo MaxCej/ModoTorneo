@@ -6,6 +6,7 @@
   "nav": {
     "tournaments": "Tournaments",
     "data": "Data",
+    "settings": "Settings",
     "toggle": "Toggle navigation",
     "label": "Main navigation"
   },
@@ -55,10 +56,13 @@
     "saved": "Saved",
     "commandError": "{{code}}: {{message}}",
     "closeNotice": "Close",
+    "notSaved": "Not saved",
+    "retrySave": "Retry save",
     "notices": {
       "conflict": "This tournament was changed in another tab. Your last change was not saved. The latest version has been loaded.",
       "notFound": "This tournament no longer exists. It may have been deleted in another tab.",
-      "saveFailed": "Could not save ({{code}}): {{message}}. The last saved version has been loaded."
+      "saveFailed": "Could not save ({{code}}): {{message}}. The last saved version has been loaded.",
+      "unsaved": "Not saved: {{message}}. Your changes are kept on this page."
     },
     "details": {
       "title": "Details",
@@ -324,6 +328,34 @@
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"
+  },
+  "storage": {
+    "githubUnavailable": "Cannot reach GitHub: {{message}}",
+    "unauthorized": "GitHub rejected the token. Check it on the Settings page.",
+    "openSettings": "Open Settings"
+  },
+  "settings": {
+    "title": "Settings",
+    "statusLocal": "Storage: this browser",
+    "statusGitHub": "Storage: GitHub ({{owner}}/{{repo}})",
+    "owner": "Owner",
+    "repo": "Repository",
+    "token": "Fine-grained token",
+    "tokenHelp": "Create a private repository and a fine-grained token with access to that repository only and Contents: Read and write.",
+    "migrationHint": "To move existing data, export it on the Data page first, then import it after connecting.",
+    "testConnection": "Test connection",
+    "testing": "Testing connection",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "pendingWork": "Wait until the current tournament is saved.",
+    "result": {
+      "private": "Connected to {{name}}.",
+      "public": "Connected to {{name}}. This repository is public: player names will be visible to anyone.",
+      "unauthorized": "The token was rejected.",
+      "notFound": "Repository not found, or the token has no access to it.",
+      "readOnly": "The token cannot write to this repository.",
+      "unavailable": "Cannot reach GitHub: {{message}}"
+    }
   },
   "data": {
     "title": "Data",

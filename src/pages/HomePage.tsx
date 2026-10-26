@@ -1,19 +1,9 @@
-import {
-  Alert,
-  Anchor,
-  Button,
-  Container,
-  Group,
-  Loader,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from '@mantine/core';
+import { Anchor, Button, Container, Group, Loader, Stack, Table, Text, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { getStorage, type StorageError, type TournamentSummary } from '../storage';
+import { getStorage, readSettings, type StorageError, type TournamentSummary } from '../storage';
+import { StorageErrorAlert } from './StorageErrorAlert';
 
 type ListState =
   | { status: 'loading' }
@@ -24,6 +14,7 @@ type ListState =
 export function HomePage() {
   const { t } = useTranslation();
   const [list, setList] = useState<ListState>({ status: 'loading' });
+  const [settings] = useState(readSettings);
 
   useEffect(() => {
     let active = true;
@@ -43,8 +34,6 @@ export function HomePage() {
     };
   }, []);
 
-  const unavailable = list.status === 'error' && list.error.code === 'UNAVAILABLE';
-
   return (
     <Container py="xl">
       <Stack>
@@ -55,11 +44,8 @@ export function HomePage() {
           </Button>
         </Group>
 
-        {unavailable && <Alert color="red">{t('home.unavailable')}</Alert>}
-        {list.status === 'error' && !unavailable && (
-          <Alert color="red">
-            {t('home.loadFailed', { code: list.error.code, message: list.error.message })}
-          </Alert>
+        {list.status === 'error' && (
+          <StorageErrorAlert error={list.error} settings={settings} page="home" />
         )}
 
         {list.status === 'loading' && <Loader />}

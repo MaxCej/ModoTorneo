@@ -22,6 +22,7 @@ import {
   getStorage,
   planImport,
   readImportFile,
+  readSettings,
   tournamentFileName,
   type ConflictChoice,
   type ImportPlan,
@@ -32,6 +33,8 @@ import {
 } from '../storage';
 import { DeleteTournamentModal } from './data/DeleteTournamentModal';
 import { ImportConflictModal } from './data/ImportConflictModal';
+import { StorageStatus } from './SettingsPage';
+import { StorageErrorAlert } from './StorageErrorAlert';
 
 type ListState =
   | { status: 'loading' }
@@ -61,6 +64,7 @@ const SUMMARY_COUNTS = [
 export function DataPage() {
   const { t } = useTranslation();
   const [list, setList] = useState<ListState>({ status: 'loading' });
+  const [settings] = useState(readSettings);
   const [reloadKey, setReloadKey] = useState(0);
   const [persistence, setPersistence] = useState<PersistenceStatus | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -99,7 +103,6 @@ export function DataPage() {
     };
   }, []);
 
-  const unavailable = list.status === 'error' && list.error.code === 'UNAVAILABLE';
   const disabled = list.status !== 'ready' || busy;
 
   async function exportAll() {
@@ -201,13 +204,13 @@ export function DataPage() {
           </Group>
         </Group>
 
-        {persistence && <Text size="sm">{t(`data.persistence.${persistence}`)}</Text>}
+        <StorageStatus settings={settings} />
+        {settings.backend === 'local' && persistence && (
+          <Text size="sm">{t(`data.persistence.${persistence}`)}</Text>
+        )}
 
-        {unavailable && <Alert color="red">{t('data.unavailable')}</Alert>}
-        {list.status === 'error' && !unavailable && (
-          <Alert color="red">
-            {t('data.loadFailed', { code: list.error.code, message: list.error.message })}
-          </Alert>
+        {list.status === 'error' && (
+          <StorageErrorAlert error={list.error} settings={settings} page="data" />
         )}
         {notice?.kind === 'deleteConflict' && (
           <Alert color="red">{t('data.deleteConflict', { name: notice.name })}</Alert>
