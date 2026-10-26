@@ -255,7 +255,8 @@ tournaments/<id>.json   # one TournamentDocument per tournament (the same file a
 players.json            # { kind: 'modotorneo-players', schemaVersion: 1, players } sorted by id
 ```
 
-**Set up:**
+**Set up** (step-by-step guide for new users, with troubleshooting:
+[docs/github-storage-setup.md](docs/github-storage-setup.md)):
 
 1. Create a new **private** repository on GitHub (for example `mtg-data`). It can stay empty.
 2. Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new):
