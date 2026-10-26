@@ -1,6 +1,7 @@
 import { MantineProvider } from '@mantine/core';
 import { Notifications, notifications } from '@mantine/notifications';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   emptyTimerRecord,
@@ -32,6 +33,7 @@ function Harness({ openRound }: { openRound: OpenRound }) {
   return (
     <RoundTimer
       key={openRound.round}
+      tournamentId={ID}
       tournamentName="Cup"
       openRound={openRound}
       record={record}
@@ -44,7 +46,9 @@ function renderTimer(openRound = round(1)) {
   const view = render(
     <MantineProvider env="test">
       <Notifications />
-      <Harness openRound={openRound} />
+      <MemoryRouter>
+        <Harness openRound={openRound} />
+      </MemoryRouter>
     </MantineProvider>,
   );
   return {
@@ -52,7 +56,9 @@ function renderTimer(openRound = round(1)) {
       view.rerender(
         <MantineProvider env="test">
           <Notifications />
-          <Harness openRound={next} />
+          <MemoryRouter>
+            <Harness openRound={next} />
+          </MemoryRouter>
         </MantineProvider>,
       ),
   };
@@ -96,6 +102,14 @@ describe('RoundTimer', () => {
     expect(screen.getByRole('heading', { name: 'Round 1 timer' })).toBeInTheDocument();
     expect(screen.getByText('Not started')).toBeInTheDocument();
     expect(minutesInput()).toHaveValue('50');
+  });
+
+  it('opens the big timer in a named window', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    renderTimer();
+    click('Open big timer');
+    expect(open).toHaveBeenCalledWith(`/tournaments/${ID}/timer`, `modotorneo-timer-${ID}`);
+    open.mockRestore();
   });
 
   it('names a top cut round as its tab does', () => {

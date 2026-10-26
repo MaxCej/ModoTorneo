@@ -470,7 +470,12 @@
     "timeUp": "{{round}}: time is up",
     "mute": "Mute timer sound",
     "unmute": "Unmute timer sound",
-    "enableSound": "Enable sound"
+    "enableSound": "Enable sound",
+    "openBigTimer": "Open big timer",
+    "bigView": {
+      "noRecord": "No round timer for this tournament.",
+      "waiting": "Waiting for the next round."
+    }
   },
   "notFound": {
     "title": "Page not found",

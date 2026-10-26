@@ -184,6 +184,7 @@ export function TournamentPage() {
             {openRound !== null && (
               <RoundTimer
                 key={`${state.id}-${openRound.round}`}
+                tournamentId={state.id}
                 tournamentName={state.name}
                 openRound={openRound}
                 record={timerRecord}

@@ -2,6 +2,7 @@ import { Button, Card, Group, Modal, NumberInput, Stack, Text, Title, rem } from
 import { notifications } from '@mantine/notifications';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useHref } from 'react-router';
 import {
   adjustTimer,
   MINUTE_MS,
@@ -26,6 +27,7 @@ import { roundLabel } from '../timer/roundLabel';
 import { useClock } from '../timer/useClock';
 
 type Props = {
+  tournamentId: string;
   tournamentName: string;
   openRound: OpenRound;
   record: TimerRecord | null;
@@ -33,8 +35,9 @@ type Props = {
 };
 
 /** The open round's timer (SPEC 13). Kept in this browser only; never saves the tournament. */
-export function RoundTimer({ tournamentName, openRound, record, onChange }: Props) {
+export function RoundTimer({ tournamentId, tournamentName, openRound, record, onChange }: Props) {
   const { t } = useTranslation();
+  const bigTimerHref = useHref(`/tournaments/${tournamentId}/timer`);
   const label = roundLabel(t, openRound);
   const [muted, setMuted] = useMuted('page');
   const timer = roundTimer(record, openRound.round);
@@ -81,7 +84,17 @@ export function RoundTimer({ tournamentName, openRound, record, onChange }: Prop
           <Title order={2} size="h4">
             {t('timer.heading', { round: label })}
           </Title>
-          <MuteToggle muted={muted} onChange={setMuted} offerUnlock={timer !== null} />
+          <Group gap="xs">
+            <Button
+              variant="subtle"
+              size="xs"
+              // A named window: a second click reuses it.
+              onClick={() => window.open(bigTimerHref, `modotorneo-timer-${tournamentId}`)}
+            >
+              {t('timer.openBigTimer')}
+            </Button>
+            <MuteToggle muted={muted} onChange={setMuted} offerUnlock={timer !== null} />
+          </Group>
         </Group>
         {timer === null || remaining === null ? (
           <Group align="flex-end">
