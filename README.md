@@ -56,7 +56,7 @@ Data format is plain, documented JSON so it is human-readable and diff-friendly 
   - Archetype share of the field.
   - Archetype match win percentage.
   - Archetype vs archetype matchup matrix.
-  - Most played cards across the metagame (and per archetype).
+  - Most played cards across the metagame (and per archetype) (later, with Scryfall).
 - Card data (names, types, images) can be resolved through the Scryfall API.
 
 ## Future Features (Not Core)
@@ -200,6 +200,25 @@ clears the deck.
   `archetypes` (every registered player, guests included), so lists and profiles never replay a
   log.
 
+## Metagame
+
+The metagame page (`/#/metagame`) adds up one row per tournament stored in its summary
+(`tournamentMetagame` in `src/domain/metagame.ts`): players and top cut players per archetype,
+and match and game counts per pair of archetypes, guests included. It never replays a log.
+
+- **Which tournaments:** every stored tournament of the chosen format, any status, with a date in
+  the optional range (both ends included). A tournament where no player has an archetype is
+  skipped, and the page says how many were.
+- **Which players:** every registered player, guests and dropped players included. Players
+  without an archetype count as "Unknown".
+- **Grouping:** archetypes match case-insensitively; the most recent spelling is shown.
+- **Share:** an archetype's players over all players of the counted tournaments.
+- **Win rates:** as for player statistics (swiss and top cut, byes and unplayed matches left out,
+  no 33% floor), with mirror matches left out. Mirrors show as a match count on the matrix
+  diagonal.
+- **Groups:** the 8 most played archetypes, then "Other" (the rest, when there are more than 8),
+  then "Unknown", in the matrix and the charts. The table lists every archetype.
+
 ### Paste format
 
 The decklist box reads a Moxfield or MTG Arena text export, or plain `N Card Name` lines
@@ -241,7 +260,8 @@ SB: 1 Abrade
 
 ## Screens
 
-Every page renders inside one app shell with navigation (Tournaments, Players, Data, Settings). Pages are
+Every page renders inside one app shell with navigation (Tournaments, Players, Metagame, Data,
+Settings). Pages are
 loaded lazily, one chunk each.
 
 - **Tournaments (`/#/`):** every stored tournament with date, format, status and player count,
@@ -300,6 +320,12 @@ loaded lazily, one chunk each.
   "Rename" changes the registry name (another player's name needs "Rename anyway"); past
   tournaments keep the name they were played with. Player names in Standings, the registered
   list, the read-only registry list, the bracket and the placings link here; guests do not.
+- **Metagame (`/#/metagame`):** "Format" (the most recent one with decks by default), "From" and
+  "To" filters, kept in the URL (`?format=modern&from=2026-01-01&to=2026-06-30`) so a view can be
+  bookmarked. Then the tournament and player counts, an archetype table (players, share, W-L-D,
+  match win %, game win %, top cut players; every column sorts, "Unknown" stays last), the
+  matchup matrix (the row's match win % and W-L-D against each column), and bar charts of share
+  and match win %.
 - **Data (`/#/data`):** the active storage, export, import and delete (see below).
 - **Settings (`/#/settings`):** choose where data is stored: this browser or a GitHub
   repository (see [GitHub storage](#github-storage)).
@@ -314,9 +340,10 @@ and read once per page load (`localStorage` key `modotorneo.storage`).
 - **Tables:** `tournaments` (one row per tournament: the whole `TournamentDocument` plus summary
   fields recomputed on every save, including `playerCount` and the per-player results `players`)
   and `players` (the global player registry). Schema changes are new Dexie versions with an
-  upgrade function (now version 5: version 3 adds the GitHub summary cache `githubSummaries`,
+  upgrade function (now version 6: version 3 adds the GitHub summary cache `githubSummaries`,
   version 4 adds the per-player results to every row and clears that cache, version 5 adds
-  `archetype` to those results and `archetypes` to every row and clears that cache again).
+  `archetype` to those results and `archetypes` to every row and clears that cache again,
+  version 6 adds the per-tournament `metagame` to every row and clears that cache again).
 - **Validation:** every document is checked with `parseTournamentDocument` on save and on load. A
   corrupted row is reported as `INVALID_DOCUMENT`, never loaded silently.
   Players are checked with `PlayerSchema` the same way; an invalid player is `INVALID_PLAYER`.
@@ -424,6 +451,7 @@ players.
 | Local storage         | Dexie (IndexedDB)                                                 |
 | UI state              | Zustand                                                           |
 | Forms and dates       | `@mantine/form`, `@mantine/dates` with dayjs                      |
+| Charts                | `@mantine/charts` (Recharts)                                      |
 | GitHub API client     | Plain `fetch` (no Octokit)                                        |
 | Planned (later specs) | `vite-plugin-pwa`                                                 |
 
@@ -462,7 +490,8 @@ re-pairs the open swiss round. An optional Top 4 / 8 / 16 / 32 (best of three or
 final with a bracket and placings. A players page and a profile per registry player show match
 and game win rates, overall and per format, and the tournament history. Each registration can
 carry a deck: an archetype (with suggestions from the same format) and a pasted Moxfield or Arena
-list, shown in the registered list, the rounds, Standings, the top cut and the profile. Data can
+list, shown in the registered list, the rounds, Standings, the top cut and the profile. A metagame
+page shows archetype share, win rates and a matchup matrix per format and date range. Data can
 be stored in the browser or in a private GitHub repository (one commit per save), chosen on the
 Settings page.
 

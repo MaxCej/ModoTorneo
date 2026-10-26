@@ -20,6 +20,9 @@ const PlayersPage = lazy(() =>
 const PlayerPage = lazy(() =>
   import('./pages/PlayerPage').then((m) => ({ default: m.PlayerPage })),
 );
+const MetagamePage = lazy(() =>
+  import('./pages/MetagamePage').then((m) => ({ default: m.MetagamePage })),
+);
 const NotFoundPage = lazy(() =>
   import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
 );
@@ -33,6 +36,7 @@ export const routes: RouteObject[] = [
       { path: '/tournaments/:id', element: <TournamentPage /> },
       { path: '/players', element: <PlayersPage /> },
       { path: '/players/:id', element: <PlayerPage /> },
+      { path: '/metagame', element: <MetagamePage /> },
       { path: '/data', element: <DataPage /> },
       { path: '/settings', element: <SettingsPage /> },
       { path: '*', element: <NotFoundPage /> },

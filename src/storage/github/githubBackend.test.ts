@@ -245,7 +245,7 @@ describe('GitHubBackend listTournaments', () => {
     expect(cold.ok && cold.value[0].players).toEqual(players);
   });
 
-  it('carries archetypes (guests included) and archetype per registry player', async () => {
+  it('carries archetypes and metagame (guests included) and archetype per registry player', async () => {
     const { backend, open } = setup();
     let doc = newDoc({ name: 'Decks' });
     const commands: Command[] = [
@@ -283,6 +283,14 @@ describe('GitHubBackend listTournaments', () => {
       ['Alice', 'Burn'],
       ['Carmen', null],
     ]);
+    const metagame = [
+      { archetype: 'Burn', players: 1, topCut: 0 },
+      { archetype: 'Elves', players: 1, topCut: 0 },
+      { archetype: null, players: 1, topCut: 0 },
+    ];
+    expect(saved.ok && saved.value.summary.metagame.archetypes).toEqual(metagame);
+    expect(cached.ok && cached.value[0].metagame.archetypes).toEqual(metagame);
+    expect(cold.ok && cold.value[0].metagame.archetypes).toEqual(metagame);
   });
 
   it('returns an empty list for an empty repository', async () => {

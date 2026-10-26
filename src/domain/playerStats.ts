@@ -98,7 +98,7 @@ function countSwiss(stage: PlayerResult['swiss'], match: Match, side: 'A' | 'B')
 }
 
 /** Adds a reported match from `side`'s view. Intentional draws are stored with 0 games. */
-function countPlayed(stage: StageResult, match: Match, side: 'A' | 'B'): void {
+export function countPlayed(stage: StageResult, match: Match, side: 'A' | 'B'): void {
   const { result } = match;
   if (result === null || result.kind === 'unplayed') {
     return;

@@ -1,6 +1,7 @@
 import {
   playerResults,
   tournamentArchetypes,
+  tournamentMetagame,
   type IsoDateTime,
   type Player,
   type TournamentDocument,
@@ -27,6 +28,7 @@ export function toSummary(
     revision,
     players: playerResults(state),
     archetypes: tournamentArchetypes(state),
+    metagame: tournamentMetagame(state),
   };
 }
 

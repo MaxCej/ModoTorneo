@@ -5,6 +5,7 @@ import {
   execute,
   playerResults,
   reduce,
+  tournamentMetagame,
   type Command,
   type PlayerResult,
   type TournamentCreatedPayload,
@@ -169,6 +170,7 @@ describe('DexieBackend tournaments', () => {
             reduce(fixture.events as TournamentDocument['events'], TOURNAMENT_ID),
           ),
           archetypes: [],
+          metagame: fixtureMetagame(),
         },
       ],
     });
@@ -281,6 +283,7 @@ describe('DexieBackend tournaments', () => {
 });
 
 const fixturePlayers = () => playerResults(reduce(fixtureDoc().events, TOURNAMENT_ID));
+const fixtureMetagame = () => tournamentMetagame(reduce(fixtureDoc().events, TOURNAMENT_ID));
 
 /** The fixture plus a `DeckSet` with an archetype for each of its first two players. */
 function fixtureWithDecks(): TournamentDocument {
@@ -306,7 +309,7 @@ function fixtureWithDecks(): TournamentDocument {
 }
 
 describe('DexieBackend decks', () => {
-  it('returns archetypes (guests included) and archetype per registry player', async () => {
+  it('returns archetypes and metagame (guests included) and archetype per registry player', async () => {
     const { backend } = freshBackend();
     let doc = newDoc({ name: 'Decks' });
     for (const command of [
@@ -340,6 +343,79 @@ describe('DexieBackend decks', () => {
       ['Alice', 'Burn'],
       ['Carmen', null],
     ]);
+    expect(list.ok && list.value[0].metagame.archetypes).toEqual([
+      { archetype: 'Burn', players: 1, topCut: 0 },
+      { archetype: 'Elves', players: 1, topCut: 0 },
+      { archetype: null, players: 1, topCut: 0 },
+    ]);
+  });
+});
+
+describe('DexieBackend version 6 upgrade', () => {
+  /** A version 5 database (SPEC 11 schema) with rows that have no `metagame`. */
+  async function seedVersion5(dbName: string, row: Record<string, unknown>) {
+    const v5 = new Dexie(dbName);
+    v5.version(5).stores({
+      tournaments: 'id, date, format, status, updatedAt',
+      players: 'id, name',
+      githubSummaries: '[repo+id]',
+    });
+    await v5.table('tournaments').add(row);
+    await v5.table('githubSummaries').add({
+      repo: 'owner/data',
+      id: TOURNAMENT_ID,
+      sha: 'abc',
+      summary: { id: TOURNAMENT_ID },
+    });
+    v5.close();
+  }
+
+  const v5Row = (doc: TournamentDocument) => ({
+    id: doc.id,
+    doc,
+    revision: 3,
+    name: 'Friday Night Magic',
+    date: '2026-10-11',
+    format: 'modern',
+    status: 'finished',
+    eventCount: doc.events.length,
+    playerCount: 8,
+    updatedAt: NOW,
+    players: fixturePlayers(),
+    archetypes: ['Amulet Titan', 'Burn'],
+  });
+
+  it('opens a version 5 database at version 6 with metagame filled and an empty cache', async () => {
+    const { dbName, backend } = freshBackend();
+    const doc = fixtureWithDecks();
+    const metagame = tournamentMetagame(reduce(doc.events, TOURNAMENT_ID));
+    await seedVersion5(dbName, v5Row(doc));
+
+    const raw = new ModoTorneoDb(dbName);
+    await raw.open();
+    expect(raw.verno).toBe(6);
+    expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual({ ...v5Row(doc), metagame });
+    expect(metagame.archetypes.map((a) => [a.archetype, a.players])).toEqual([
+      ['Amulet Titan', 1],
+      ['Burn', 1],
+      [null, 6],
+    ]);
+    expect(await raw.githubSummaries.count()).toBe(0);
+    raw.close();
+
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value[0].metagame).toEqual(metagame);
+  });
+
+  it('gives an invalid stored doc an empty metagame, and it still fails on load', async () => {
+    const { dbName, backend } = freshBackend();
+    const broken = { ...fixtureDoc(), schemaVersion: 7 } as unknown as TournamentDocument;
+    await seedVersion5(dbName, v5Row(broken));
+
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value[0].metagame).toEqual({ archetypes: [], matchups: [] });
+    const loaded = await backend.loadTournament(TOURNAMENT_ID);
+    expect(loaded.ok || loaded.error.code).toBe('INVALID_DOCUMENT');
   });
 });
 
@@ -381,19 +457,22 @@ describe('DexieBackend version 5 upgrade', () => {
     }),
   });
 
-  it('opens a version 4 database at version 5 with archetypes filled and an empty cache', async () => {
+  it('opens a version 4 database at version 6 with archetypes filled and an empty cache', async () => {
     const { dbName, backend } = freshBackend();
     const doc = fixtureWithDecks();
-    const players = playerResults(reduce(doc.events, TOURNAMENT_ID));
+    const state = reduce(doc.events, TOURNAMENT_ID);
+    const players = playerResults(state);
     await seedVersion4(dbName, v4Row(doc));
 
     const raw = new ModoTorneoDb(dbName);
     await raw.open();
-    expect(raw.verno).toBe(5);
+    // Version 6 (SPEC 12) runs after the version 5 upgrade.
+    expect(raw.verno).toBe(6);
     expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual({
       ...v4Row(doc),
       players,
       archetypes: ['Amulet Titan', 'Burn'],
+      metagame: tournamentMetagame(state),
     });
     expect(players.filter((p) => p.archetype !== null)).toHaveLength(2);
     expect(await raw.githubSummaries.count()).toBe(0);
@@ -454,11 +533,12 @@ describe('DexieBackend version 4 upgrade', () => {
 
     const raw = new ModoTorneoDb(dbName);
     await raw.open();
-    expect(raw.verno).toBe(5);
+    expect(raw.verno).toBe(6);
     expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual({
       ...row,
       players: fixturePlayers(),
       archetypes: [],
+      metagame: fixtureMetagame(),
     });
     expect(await raw.githubSummaries.count()).toBe(0);
     raw.close();
@@ -505,12 +585,14 @@ describe('DexieBackend version 3 upgrade', () => {
 
     const raw = new ModoTorneoDb(dbName);
     await raw.open();
-    // Versions 4 (SPEC 10) and 5 (SPEC 11) run after version 3 and add `players`, `archetypes`.
-    expect(raw.verno).toBe(5);
+    // Versions 4 (SPEC 10), 5 (SPEC 11) and 6 (SPEC 12) run after version 3 and add
+    // `players`, `archetypes` and `metagame`.
+    expect(raw.verno).toBe(6);
     expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual({
       ...row,
       players: fixturePlayers(),
       archetypes: [],
+      metagame: fixtureMetagame(),
     });
     expect(await raw.githubSummaries.count()).toBe(0);
     raw.close();
@@ -553,8 +635,9 @@ describe('DexieBackend version 2 upgrade', () => {
 
     const raw = new ModoTorneoDb(dbName);
     await raw.open();
-    // Versions 3 (SPEC 09), 4 (SPEC 10) and 5 (SPEC 11) run after the version 2 upgrade.
-    expect(raw.verno).toBe(5);
+    // Versions 3 (SPEC 09), 4 (SPEC 10), 5 (SPEC 11) and 6 (SPEC 12) run after the version 2
+    // upgrade.
+    expect(raw.verno).toBe(6);
     expect((await raw.tournaments.get(TOURNAMENT_ID))?.playerCount).toBe(8);
     raw.close();
   });

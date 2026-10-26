@@ -38,6 +38,21 @@ export {
   type RollbackPreview,
 } from './history';
 export { newId } from './ids';
+export {
+  defaultMetagameFormat,
+  METAGAME_GROUPS,
+  metagameReport,
+  tournamentMetagame,
+  type ArchetypeEntry,
+  type ArchetypeStats,
+  type Matchup,
+  type MatrixCell,
+  type MetagameFilters,
+  type MetagameGroup,
+  type MetagameReport,
+  type MetagameSource,
+  type TournamentMetagame,
+} from './metagame';
 export { parseImportFile, type ParsedImport } from './importFile';
 export { compareLogs, playersFromDocument, type LogComparison } from './merge';
 export {
