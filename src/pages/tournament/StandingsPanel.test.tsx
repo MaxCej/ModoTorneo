@@ -1,5 +1,6 @@
 import { MantineProvider } from '@mantine/core';
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { reduce, type MatchResult } from '../../domain';
 import {
@@ -19,7 +20,9 @@ const WIN_20: MatchResult = { winsA: 2, winsB: 0, draws: 0, kind: 'played' };
 function renderPanel(log: LogBuilder) {
   render(
     <MantineProvider env="test">
-      <StandingsPanel state={reduce(log.events, TOURNAMENT_ID)} />
+      <MemoryRouter>
+        <StandingsPanel state={reduce(log.events, TOURNAMENT_ID)} />
+      </MemoryRouter>
     </MantineProvider>,
   );
 }
@@ -140,5 +143,28 @@ describe('StandingsPanel', () => {
         ['Player 4', '0'],
       ]);
     });
+  });
+
+  it('links registry players to their profile and shows guests as plain text', () => {
+    const guest = playerIds(5)[4];
+    const log = registeredLog(4).add('PlayerRegistered', {
+      playerId: guest,
+      playerName: 'Guest',
+      guest: true,
+    });
+    log.add('RoundPaired', {
+      round: 1,
+      stage: 'swiss',
+      pairings: [pairing(1, 1, A, B), pairing(2, 2, C, D), pairing(3, 3, guest, null)],
+    });
+    log.add('ResultReported', { matchId: matchId(1), result: WIN_20 });
+    log.add('ResultReported', { matchId: matchId(2), result: WIN_20 });
+    log.add('RoundClosed', { round: 1 });
+    renderPanel(log);
+
+    expect(screen.getByRole('link', { name: 'Player 1' })).toHaveAttribute('href', `/players/${A}`);
+    expect(screen.getAllByRole('link')).toHaveLength(4);
+    expect(screen.getByText('Guest')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Guest' })).not.toBeInTheDocument();
   });
 });

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Player } from '../../domain';
 import type { StorageError } from '../../storage';
+import { PlayerName } from '../players/PlayerName';
 import { NameEntry } from './NameEntry';
 
 type Props = {
@@ -81,7 +82,9 @@ export function RegistryList({
           {listed.map((player) => (
             <Group key={player.id} component="li" justify="space-between" wrap="nowrap">
               {readOnly ? (
-                <Text>{player.name}</Text>
+                <Text>
+                  <PlayerName playerId={player.id} name={player.name} guest={false} />
+                </Text>
               ) : (
                 <>
                   <UnstyledButton onClick={() => onRegister(player)} style={{ flex: 1 }}>

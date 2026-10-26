@@ -1,6 +1,7 @@
 import { Badge, Button, Group, Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { PlayerEntry, TournamentStatus } from '../../domain';
+import { PlayerName } from '../players/PlayerName';
 import { NameEntry } from './NameEntry';
 
 type Props = {
@@ -49,7 +50,13 @@ export function RegisteredList({
           {entries.map((entry) => (
             <Group key={entry.playerId} component="li" justify="space-between" wrap="nowrap">
               <Group gap="xs" wrap="nowrap">
-                <Text c={entry.dropped ? 'dimmed' : undefined}>{entry.playerName}</Text>
+                <Text c={entry.dropped ? 'dimmed' : undefined}>
+                  <PlayerName
+                    playerId={entry.playerId}
+                    name={entry.playerName}
+                    guest={entry.guest}
+                  />
+                </Text>
                 {entry.guest && (
                   <Badge size="sm" variant="light" color="grape">
                     {t('tournament.registration.guest')}

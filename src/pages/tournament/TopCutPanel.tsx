@@ -1,5 +1,5 @@
 import { Card, Group, ScrollArea, Stack, Table, Text, Title } from '@mantine/core';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   topCutBracket,
@@ -8,6 +8,7 @@ import {
   type BracketPlayer,
   type TournamentState,
 } from '../../domain';
+import { PlayerName } from '../players/PlayerName';
 import { useResultText } from './MatchRow';
 
 /** The bracket, one column per paired top cut round, and the placings. */
@@ -15,7 +16,13 @@ export function TopCutPanel({ state }: { state: TournamentState }) {
   const { t } = useTranslation();
   const bracket = useMemo(() => topCutBracket(state), [state]);
   const placings = useMemo(() => topCutPlacings(state), [state]);
-  const name = (playerId: string) => state.players[playerId]?.playerName ?? playerId;
+  const name = (playerId: string) => (
+    <PlayerName
+      playerId={playerId}
+      name={state.players[playerId]?.playerName ?? playerId}
+      guest={state.players[playerId]?.guest ?? false}
+    />
+  );
   const ordinal = (n: number) => t('tournament.topCut.ordinal', { count: n, ordinal: true });
   const place = (from: number, to: number) =>
     from === to
@@ -75,17 +82,18 @@ export function TopCutPanel({ state }: { state: TournamentState }) {
   );
 }
 
-type CardProps = { match: BracketMatch; name: (playerId: string) => string };
+type CardProps = { match: BracketMatch; name: (playerId: string) => ReactNode };
 
 /** Both players as "(seed) name", the winner in bold, and the score. */
 function BracketMatchCard({ match, name }: CardProps) {
   const { t } = useTranslation();
   const resultText = useResultText();
   const line = (player: BracketPlayer) => {
-    const text = t('tournament.topCut.bracketPlayer', {
-      seed: player.seed,
-      name: name(player.playerId),
-    });
+    const text = (
+      <>
+        {t('tournament.topCut.bracketSeed', { seed: player.seed })} {name(player.playerId)}
+      </>
+    );
     return match.winner === player.playerId ? (
       <Text component="strong" fw={700} size="sm">
         {text}

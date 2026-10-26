@@ -257,7 +257,7 @@
       "tab": "Top cut",
       "heading": "Top {{size}} · Best of {{bestOf}}",
       "empty": "Pair the first top cut round to see the bracket.",
-      "bracketPlayer": "({{seed}}) {{name}}",
+      "bracketSeed": "({{seed}})",
       "notReported": "Not reported",
       "placingsLabel": "Top cut placings",
       "place": "Place",
