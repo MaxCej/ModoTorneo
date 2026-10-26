@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   createTournament,
+  playerResults,
+  reduce,
   type TournamentCreatedPayload,
   type TournamentDocument,
 } from '../../domain';
@@ -228,6 +230,19 @@ describe('GitHubBackend tournaments', () => {
 });
 
 describe('GitHubBackend listTournaments', () => {
+  it('carries the player results on saved and listed summaries', async () => {
+    const { backend, open } = setup();
+    const players = playerResults(reduce(fixtureDoc().events, ID));
+    expect(players).toHaveLength(8);
+    const saved = await backend.saveTournament(fixtureDoc(), null);
+    expect(saved.ok && saved.value.summary.players).toEqual(players);
+    const cached = await backend.listTournaments();
+    expect(cached.ok && cached.value[0].players).toEqual(players);
+    // A fresh cache database recomputes the summary from the file.
+    const cold = await open(undefined, `${ID}-cold-${dbCount}`).listTournaments();
+    expect(cold.ok && cold.value[0].players).toEqual(players);
+  });
+
   it('returns an empty list for an empty repository', async () => {
     const { fake, backend } = setup();
     expect(await backend.listTournaments()).toEqual({ ok: true, value: [] });

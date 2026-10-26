@@ -1,10 +1,12 @@
 import Dexie, { type EntityTable, type Table } from 'dexie';
 import {
   parseTournamentDocument,
+  playerResults,
   type Format,
   type IsoDate,
   type IsoDateTime,
   type Player,
+  type PlayerResult,
   type TournamentDocument,
   type TournamentStatus,
   type Uuid,
@@ -25,6 +27,7 @@ export type TournamentRow = {
   eventCount: number;
   playerCount: number; // added in version 2
   updatedAt: IsoDateTime;
+  players: PlayerResult[]; // added in version 4
 };
 
 export type PlayerRow = Player;
@@ -41,6 +44,12 @@ export type GitHubSummaryRow = {
 function playerCountOf(doc: unknown): number {
   const parsed = parseTournamentDocument(doc);
   return parsed.ok ? Object.keys(parsed.value.state.players).length : 0;
+}
+
+/** Player results of a stored document. An invalid doc gets none and still fails on load. */
+function playerResultsOf(doc: unknown): PlayerResult[] {
+  const parsed = parseTournamentDocument(doc);
+  return parsed.ok ? playerResults(parsed.value.state) : [];
 }
 
 export class ModoTorneoDb extends Dexie {
@@ -69,5 +78,18 @@ export class ModoTorneoDb extends Dexie {
       );
     // Version 3: the GitHub summary cache. Existing tables unchanged, nothing to upgrade.
     this.version(3).stores({ ...stores, githubSummaries: '[repo+id]' });
+    // Version 4: same indexes, adds `players` to every row and clears the GitHub summary cache,
+    // whose rows have no `players` yet; the next list recomputes them from the files.
+    this.version(4)
+      .stores({ ...stores, githubSummaries: '[repo+id]' })
+      .upgrade(async (tx) => {
+        await tx
+          .table<TournamentRow, Uuid>('tournaments')
+          .toCollection()
+          .modify((row) => {
+            row.players = playerResultsOf(row.doc);
+          });
+        await tx.table('githubSummaries').clear();
+      });
   }
 }

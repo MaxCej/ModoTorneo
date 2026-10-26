@@ -4,6 +4,7 @@ import type {
   IsoDate,
   IsoDateTime,
   Player,
+  PlayerResult,
   Result,
   TournamentDocument,
   TournamentState,
@@ -24,6 +25,7 @@ export type TournamentSummary = {
   playerCount: number; // every registered player, dropped included (Object.keys(state.players))
   updatedAt: IsoDateTime; // time of the last save
   revision: Revision;
+  players: PlayerResult[]; // playerResults(state): one row per registry player
 };
 
 export type StoredTournament = {
