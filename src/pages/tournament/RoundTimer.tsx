@@ -1,4 +1,5 @@
 import { Button, Card, Group, Modal, NumberInput, Stack, Text, Title, rem } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -18,7 +19,9 @@ import {
   type OpenRound,
   type TimerRecord,
 } from '../../storage/timerStorage';
+import { playBeep, unlockSound } from '../timer/beep';
 import { Clock } from '../timer/Clock';
+import { MuteToggle, useMuted } from '../timer/MuteToggle';
 import { roundLabel } from '../timer/roundLabel';
 import { useClock } from '../timer/useClock';
 
@@ -32,8 +35,24 @@ type Props = {
 /** The open round's timer (SPEC 13). Kept in this browser only; never saves the tournament. */
 export function RoundTimer({ tournamentName, openRound, record, onChange }: Props) {
   const { t } = useTranslation();
+  const label = roundLabel(t, openRound);
+  const [muted, setMuted] = useMuted('page');
   const timer = roundTimer(record, openRound.round);
-  const remaining = useClock(timer);
+  const remaining = useClock(timer, {
+    round: openRound.round,
+    onTimeUp: () => {
+      if (!muted) {
+        playBeep();
+      }
+      notifications.show({
+        id: `round-timer-${openRound.round}`,
+        color: 'red',
+        message: t('timer.timeUp', { round: label }),
+        autoClose: false,
+        withCloseButton: true,
+      });
+    },
+  });
   const [minutes, setMinutes] = useState<number | string>(record?.minutes ?? DEFAULT_ROUND_MINUTES);
   const [resetting, setResetting] = useState(false);
   const validMinutes =
@@ -49,18 +68,21 @@ export function RoundTimer({ tournamentName, openRound, record, onChange }: Prop
 
   function start() {
     if (validMinutes) {
+      // The click is the user gesture browsers need before a page may play sound.
+      unlockSound();
       update(startTimer(minutes, Date.now()), { minutes });
     }
   }
 
-  const label = roundLabel(t, openRound);
-
   return (
     <Card withBorder aria-label={t('timer.cardLabel')} component="section">
       <Stack gap="sm">
-        <Title order={2} size="h4">
-          {t('timer.heading', { round: label })}
-        </Title>
+        <Group justify="space-between">
+          <Title order={2} size="h4">
+            {t('timer.heading', { round: label })}
+          </Title>
+          <MuteToggle muted={muted} onChange={setMuted} offerUnlock={timer !== null} />
+        </Group>
         {timer === null || remaining === null ? (
           <Group align="flex-end">
             <Text c="dimmed">{t('timer.notStarted')}</Text>

@@ -466,7 +466,11 @@
       "body": "The clock goes back to “Not started”.",
       "cancel": "Cancel",
       "confirm": "Reset"
-    }
+    },
+    "timeUp": "{{round}}: time is up",
+    "mute": "Mute timer sound",
+    "unmute": "Unmute timer sound",
+    "enableSound": "Enable sound"
   },
   "notFound": {
     "title": "Page not found",

@@ -1,9 +1,25 @@
 import { MantineProvider } from '@mantine/core';
+import { Notifications, notifications } from '@mantine/notifications';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readTimerRecord, type OpenRound } from '../../storage/timerStorage';
+import {
+  emptyTimerRecord,
+  readMuted,
+  readTimerRecord,
+  writeMuted,
+  writeTimerRecord,
+  type OpenRound,
+} from '../../storage/timerStorage';
+import { playBeep, unlockSound } from '../timer/beep';
 import { useTimerRecord } from '../timer/useTimerRecord';
 import { RoundTimer } from './RoundTimer';
+
+const sound = vi.hoisted(() => ({ blocked: false }));
+vi.mock('../timer/beep', () => ({
+  playBeep: vi.fn(),
+  unlockSound: vi.fn(),
+  useSoundBlocked: () => sound.blocked,
+}));
 
 const ID = '11111111-1111-4111-8111-111111111111';
 const NOW = new Date('2026-10-26T18:00:00Z').getTime();
@@ -27,6 +43,7 @@ function Harness({ openRound }: { openRound: OpenRound }) {
 function renderTimer(openRound = round(1)) {
   const view = render(
     <MantineProvider env="test">
+      <Notifications />
       <Harness openRound={openRound} />
     </MantineProvider>,
   );
@@ -34,6 +51,7 @@ function renderTimer(openRound = round(1)) {
     showRound: (next: OpenRound) =>
       view.rerender(
         <MantineProvider env="test">
+          <Notifications />
           <Harness openRound={next} />
         </MantineProvider>,
       ),
@@ -60,11 +78,15 @@ function start(minutes?: number) {
 
 beforeEach(() => {
   localStorage.clear();
+  sound.blocked = false;
+  vi.mocked(playBeep).mockClear();
+  vi.mocked(unlockSound).mockClear();
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
 });
 
 afterEach(() => {
+  act(() => notifications.clean());
   vi.useRealTimers();
 });
 
@@ -176,5 +198,71 @@ describe('RoundTimer', () => {
     showRound(round(2));
     advance(0);
     expect(clock()).toBe('+00:20');
+  });
+});
+
+describe('RoundTimer time-up alert', () => {
+  it('beeps once and shows a notification when the countdown reaches zero', () => {
+    renderTimer();
+    start(1);
+    expect(unlockSound).toHaveBeenCalledTimes(1);
+    advance(59_000);
+    expect(playBeep).not.toHaveBeenCalled();
+    advance(2_000);
+    expect(playBeep).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Round 1: time is up')).toBeInTheDocument();
+    advance(30_000);
+    expect(playBeep).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not beep when loaded already in overtime', () => {
+    writeTimerRecord(ID, {
+      ...emptyTimerRecord('Cup'),
+      timers: [{ round: 1, state: { kind: 'running', endsAt: NOW - 5_000 } }],
+    });
+    renderTimer();
+    advance(5_000);
+    expect(screen.getByText('Time')).toBeInTheDocument();
+    expect(playBeep).not.toHaveBeenCalled();
+    expect(screen.queryByText('Round 1: time is up')).not.toBeInTheDocument();
+  });
+
+  it('beeps when −1 min takes the clock to zero', () => {
+    renderTimer();
+    start(1);
+    advance(30_000);
+    click('−1 min');
+    advance(0);
+    expect(playBeep).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the notification but does not beep when muted, and remembers the mute', () => {
+    renderTimer();
+    click('Mute timer sound');
+    expect(readMuted('page')).toBe(true);
+    expect(readMuted('bigView')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Unmute timer sound' })).toBeInTheDocument();
+    start(1);
+    advance(61_000);
+    expect(playBeep).not.toHaveBeenCalled();
+    expect(screen.getByText('Round 1: time is up')).toBeInTheDocument();
+  });
+
+  it('starts muted when the page view was muted before', () => {
+    writeMuted('page', true);
+    renderTimer();
+    expect(screen.getByRole('button', { name: 'Unmute timer sound' })).toBeInTheDocument();
+  });
+
+  it('offers "Enable sound" while the browser blocks audio and a timer exists', () => {
+    sound.blocked = true;
+    renderTimer();
+    expect(screen.queryByRole('button', { name: 'Enable sound' })).not.toBeInTheDocument();
+    start(1);
+    vi.mocked(unlockSound).mockClear();
+    click('Enable sound');
+    expect(unlockSound).toHaveBeenCalledTimes(1);
+    click('Mute timer sound');
+    expect(screen.queryByRole('button', { name: 'Enable sound' })).not.toBeInTheDocument();
   });
 });
