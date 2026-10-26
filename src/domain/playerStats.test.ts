@@ -9,7 +9,13 @@ import {
   type LogBuilder,
 } from './fixtures/builders';
 import fixture from './fixtures/top4-8players.json';
-import { playerResults } from './playerStats';
+import {
+  playerProfile,
+  playerResults,
+  playerTotals,
+  type PlayerResult,
+  type TournamentResults,
+} from './playerStats';
 import { reduce } from './reduce';
 import type { TournamentDocument } from './schemas/document';
 import type { MatchResult } from './schemas/matchResult';
@@ -148,5 +154,168 @@ describe('playerResults', () => {
       expect(result.placing !== null).toBe(inTopCut.has(result.playerId));
     }
     expect(results.map((r) => r.playerId)).toEqual([P1, P2, P3, P4, P5, P6, P7, P8]);
+  });
+});
+
+type ResultParts = {
+  swiss?: [number, number, number];
+  games?: [number, number, number];
+  byes?: number;
+  topCut?: [number, number, number, number, number] | null; // wins, losses, games won, lost, drawn
+  placing?: [number, number] | null;
+};
+
+function result(playerId: string, parts: ResultParts = {}): PlayerResult {
+  const [wins, losses, draws] = parts.swiss ?? [0, 0, 0];
+  const [won, lost, drawn] = parts.games ?? [0, 0, 0];
+  const topCut = parts.topCut ?? null;
+  const placing = parts.placing ?? null;
+  return {
+    playerId,
+    playerName: 'Name',
+    dropped: false,
+    swiss: { wins, losses, draws, byes: parts.byes ?? 0, unplayed: 0, games: { won, lost, drawn } },
+    topCut:
+      topCut === null
+        ? null
+        : {
+            wins: topCut[0],
+            losses: topCut[1],
+            draws: 0,
+            games: { won: topCut[2], lost: topCut[3], drawn: topCut[4] },
+          },
+    swissRank: null,
+    placing: placing === null ? null : { from: placing[0], to: placing[1] },
+  };
+}
+
+function tournament(
+  n: number,
+  players: PlayerResult[],
+  overrides: Partial<TournamentResults> = {},
+): TournamentResults {
+  return {
+    id: uuid(500 + n),
+    name: `Tournament ${n}`,
+    date: '2026-10-01',
+    format: 'modern',
+    status: 'finished',
+    playerCount: players.length,
+    players,
+    ...overrides,
+  };
+}
+
+describe('playerTotals', () => {
+  it('adds swiss and top cut, and computes rates without a floor', () => {
+    const totals = playerTotals([
+      tournament(1, [
+        result(P1, {
+          swiss: [3, 2, 1],
+          games: [7, 5, 1],
+          byes: 1,
+          topCut: [2, 1, 5, 3, 0],
+          placing: [2, 2],
+        }),
+        result(P2, { swiss: [0, 3, 0], games: [0, 6, 0] }),
+      ]),
+    ]);
+    expect(totals[P1]).toEqual({
+      tournaments: 1,
+      matches: { wins: 5, losses: 3, draws: 1 },
+      games: { won: 12, lost: 8, drawn: 1 },
+      byes: 1,
+      topCuts: 1,
+      matchWinRate: 5 / 9,
+      gameWinRate: 12 / 21,
+      lastPlayed: '2026-10-01',
+    });
+    expect(totals[P2].matchWinRate).toBe(0);
+    expect(totals[P2].gameWinRate).toBe(0);
+  });
+
+  it('counts a tournament with zero matches, with null rates', () => {
+    const totals = playerTotals([
+      tournament(1, [result(P1)], { date: '2026-09-01' }),
+      tournament(2, [result(P1, { byes: 1 })], { date: '2026-10-05' }),
+    ]);
+    expect(totals[P1]).toMatchObject({
+      tournaments: 2,
+      byes: 1,
+      matchWinRate: null,
+      gameWinRate: null,
+      lastPlayed: '2026-10-05',
+    });
+    expect(Object.keys(totals)).toEqual([P1]);
+  });
+});
+
+describe('playerProfile', () => {
+  const tournaments = [
+    tournament(1, [result(P1, { swiss: [1, 0, 0], games: [2, 0, 0], placing: [3, 4] })], {
+      date: '2026-09-01',
+      format: 'pauper',
+    }),
+    tournament(2, [result(P1, { swiss: [0, 1, 0], games: [1, 2, 0] })], {
+      date: '2026-10-05',
+      name: 'Beta',
+    }),
+    tournament(3, [result(P1, { swiss: [2, 0, 0], games: [4, 1, 0], placing: [1, 1] })], {
+      date: '2026-10-05',
+      name: 'Alpha',
+      format: 'standard',
+    }),
+    tournament(4, [result(P2, { placing: [1, 1] })]),
+  ];
+
+  it('lists formats played in FormatSchema order', () => {
+    const profile = playerProfile(P1, tournaments);
+    expect(profile.byFormat.map((row) => [row.format, row.tournaments])).toEqual([
+      ['standard', 1],
+      ['modern', 1],
+      ['pauper', 1],
+    ]);
+    expect(profile.byFormat[0].matchWinRate).toBe(1);
+    expect(profile.totals.matches).toEqual({ wins: 3, losses: 1, draws: 0 });
+  });
+
+  it('orders history by date descending, then name, then id', () => {
+    const sameDay = tournament(5, [result(P1)], { date: '2026-10-05', name: 'Alpha' });
+    const profile = playerProfile(P1, [...tournaments, sameDay]);
+    expect(profile.history.map((row) => row.id)).toEqual([
+      uuid(503),
+      uuid(505),
+      uuid(502),
+      uuid(501),
+    ]);
+    expect(profile.history[0].result.playerId).toBe(P1);
+  });
+
+  it('picks the lowest placing', () => {
+    expect(playerProfile(P1, tournaments).bestPlacing).toEqual({ from: 1, to: 1 });
+    expect(
+      playerProfile(P1, [
+        tournament(1, [result(P1, { placing: [5, 8] })]),
+        tournament(2, [result(P1, { placing: [3, 4] })]),
+      ]).bestPlacing,
+    ).toEqual({ from: 3, to: 4 });
+  });
+
+  it('gives an unknown id zero totals and empty lists', () => {
+    expect(playerProfile(uuid(999), tournaments)).toEqual({
+      totals: {
+        tournaments: 0,
+        matches: { wins: 0, losses: 0, draws: 0 },
+        games: { won: 0, lost: 0, drawn: 0 },
+        byes: 0,
+        topCuts: 0,
+        matchWinRate: null,
+        gameWinRate: null,
+        lastPlayed: null,
+      },
+      byFormat: [],
+      history: [],
+      bestPlacing: null,
+    });
   });
 });

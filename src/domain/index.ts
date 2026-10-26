@@ -37,7 +37,18 @@ export {
   type PairingDeps,
   type PairingWarning,
 } from './pairing';
-export { playerResults, type GameCounts, type MatchCounts, type PlayerResult } from './playerStats';
+export {
+  playerProfile,
+  playerResults,
+  playerTotals,
+  type GameCounts,
+  type MatchCounts,
+  type PlayerHistoryRow,
+  type PlayerProfile,
+  type PlayerResult,
+  type PlayerTotals,
+  type TournamentResults,
+} from './playerStats';
 export { matchPoints, playerRecords, type PlayerRecord } from './points';
 export { redoPairingCommands, type RedoPairings } from './redoPairings';
 export { effectiveEvents, reduce, stateAt } from './reduce';
