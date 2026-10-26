@@ -11,6 +11,7 @@ import {
   type PersistenceStatus,
   type StorageBackend,
 } from '../storage';
+import { emptyTimerRecord, timerKey, writeTimerRecord } from '../storage/timerStorage';
 import { FakeGitHub } from '../test/fakeGitHub';
 import { DataPage } from './DataPage';
 
@@ -299,6 +300,38 @@ describe('DataPage delete', () => {
     ).toBeInTheDocument();
     expect(await storedEvents(fixture.id)).toEqual(fixture.events);
     expect(screen.getByText('Friday Night Magic')).toBeInTheDocument();
+  });
+});
+
+describe('DataPage delete and the round timer', () => {
+  async function deleteFixture() {
+    renderPage();
+    const row = (await screen.findByText('Friday Night Magic')).closest('tr')!;
+    fireEvent.click(within(row).getByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete tournament' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+  }
+
+  it("removes the deleted tournament's timer record", async () => {
+    const doc = fixtureDoc();
+    await mocks.backend!.saveTournament(doc, null);
+    writeTimerRecord(doc.id, emptyTimerRecord('Friday Night Magic'));
+    await deleteFixture();
+    await waitFor(() => expect(screen.queryByText('Friday Night Magic')).not.toBeInTheDocument());
+    expect(localStorage.getItem(timerKey(doc.id))).toBeNull();
+  });
+
+  it('keeps the timer record when the delete fails', async () => {
+    const doc = fixtureDoc();
+    await mocks.backend!.saveTournament(doc, null);
+    writeTimerRecord(doc.id, emptyTimerRecord('Friday Night Magic'));
+    vi.spyOn(mocks.backend!, 'deleteTournament').mockResolvedValue({
+      ok: false,
+      error: { code: 'UNAVAILABLE', message: 'blocked' },
+    });
+    await deleteFixture();
+    await screen.findByText('Delete failed (UNAVAILABLE): blocked');
+    expect(localStorage.getItem(timerKey(doc.id))).not.toBeNull();
   });
 });
 

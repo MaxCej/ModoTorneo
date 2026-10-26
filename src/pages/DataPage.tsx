@@ -31,6 +31,7 @@ import {
   type StorageError,
   type TournamentSummary,
 } from '../storage';
+import { removeTimerRecord } from '../storage/timerStorage';
 import { DeleteTournamentModal } from './data/DeleteTournamentModal';
 import { ImportConflictModal } from './data/ImportConflictModal';
 import { StorageStatus } from './SettingsPage';
@@ -164,7 +165,9 @@ export function DataPage() {
     setPendingDelete(null);
     setNotice(null);
     const result = await getStorage().deleteTournament(summary.id, summary.revision);
-    if (!result.ok) {
+    if (result.ok) {
+      removeTimerRecord(summary.id); // the round timer lives in this browser only (SPEC 13)
+    } else {
       // CONFLICT: another tab saved it. Say so, so a retry is a deliberate choice.
       setNotice(
         result.error.code === 'CONFLICT'
