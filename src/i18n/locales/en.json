@@ -448,6 +448,26 @@
       }
     }
   },
+  "timer": {
+    "cardLabel": "Round timer",
+    "heading": "{{round}} timer",
+    "notStarted": "Not started",
+    "minutes": "Minutes",
+    "start": "Start",
+    "pause": "Pause",
+    "resume": "Resume",
+    "addMinute": "+1 min",
+    "removeMinute": "−1 min",
+    "reset": "Reset",
+    "time": "Time",
+    "paused": "Paused",
+    "resetModal": {
+      "title": "Reset the timer for this round?",
+      "body": "The clock goes back to “Not started”.",
+      "cancel": "Cancel",
+      "confirm": "Reset"
+    }
+  },
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to home"
