@@ -111,6 +111,22 @@ describe('redoPairingCommands', () => {
     expect(paired).toContain(P5);
   });
 
+  it('carries a deck set during the round as SetDeck', () => {
+    const deck = {
+      archetype: 'Burn',
+      main: [{ quantity: 4, name: 'Lightning Bolt' }],
+      sideboard: [],
+    };
+    const log = round2Open()
+      .add('ResultReported', { matchId: matchId(3), result: WIN_A })
+      .add('DeckSet', { playerId: P2, ...deck });
+    const { plan, state } = redo(log);
+
+    expect(plan.commands.map((c) => c.type)).toEqual(['RolledBack', 'SetDeck', 'RoundPaired']);
+    expect(plan).toMatchObject({ carried: 1, voidedResults: 1 });
+    expect(state.players[P2].deck).toEqual(deck);
+  });
+
   it('carries a player dropped during the round and does not pair them', () => {
     const log = round2Open().add('PlayerDropped', { playerId: P4 });
     const { plan, state } = redo(log);

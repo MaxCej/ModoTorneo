@@ -17,6 +17,7 @@ export type PlayerResult = {
   topCut: StageResult | null; // null when the player is in no top cut match
   swissRank: number | null;
   placing: { from: number; to: number } | null;
+  archetype: string | null; // PlayerEntry.deck?.archetype
 };
 
 const emptyStage = (): StageResult => ({
@@ -44,6 +45,7 @@ export function playerResults(state: TournamentState): PlayerResult[] {
       topCut: null,
       swissRank: null,
       placing: null,
+      archetype: player.deck?.archetype ?? null,
     };
   }
 

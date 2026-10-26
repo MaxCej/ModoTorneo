@@ -138,6 +138,19 @@ const samples: Record<TournamentEventType, Sample> = {
     valid: {},
     invalid: { 'non-empty payload': { winner: P1 } },
   },
+  DeckSet: {
+    valid: {
+      playerId: P1,
+      archetype: 'Izzet Prowess',
+      main: [{ quantity: 4, name: 'Lightning Bolt' }],
+      sideboard: [{ quantity: 2, name: 'Spell Pierce' }],
+    },
+    invalid: {
+      'missing playerId': { main: [], sideboard: [] },
+      'missing sideboard': { playerId: P1, main: [] },
+      'blank archetype': { playerId: P1, archetype: ' ', main: [], sideboard: [] },
+    },
+  },
   RolledBack: {
     valid: { toSeq: 5 },
     invalid: { 'toSeq 0': { toSeq: 0 } },

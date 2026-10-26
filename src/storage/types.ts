@@ -26,6 +26,7 @@ export type TournamentSummary = {
   updatedAt: IsoDateTime; // time of the last save
   revision: Revision;
   players: PlayerResult[]; // playerResults(state): one row per registry player
+  archetypes: string[]; // tournamentArchetypes(state): every registered player, guests included
 };
 
 export type StoredTournament = {

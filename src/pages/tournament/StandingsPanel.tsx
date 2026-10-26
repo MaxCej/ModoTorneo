@@ -40,6 +40,7 @@ export function StandingsPanel({ state }: { state: TournamentState }) {
         rows={rows}
         round={round}
         isGuest={(playerId) => state.players[playerId]?.guest ?? false}
+        deckOf={(playerId) => state.players[playerId]?.deck ?? null}
       />
     </Stack>
   );

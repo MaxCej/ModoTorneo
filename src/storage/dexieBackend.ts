@@ -60,6 +60,7 @@ function rowSummary(row: TournamentRow): TournamentSummary {
     updatedAt: row.updatedAt,
     revision: String(row.revision),
     players: row.players,
+    archetypes: row.archetypes,
   };
 }
 

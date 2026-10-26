@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createTournament, execute, executeAll, type Deps } from './commands';
+import { commandOf, createTournament, execute, executeAll, type Deps } from './commands';
 import { CREATED_PAYLOAD, PLAYERS, WIN_A, matchId, pairing, uuid } from './fixtures/builders';
 import { reduce } from './reduce';
 import type { TournamentDocument } from './schemas/document';
@@ -201,6 +201,61 @@ describe('execute', () => {
     const result = execute(doc, { type: 'RolledBack', payload: { toSeq: 4 } }, deps);
 
     expect(result).toMatchObject({ ok: false, error: { code: 'INVALID_ROLLBACK_TARGET' } });
+  });
+});
+
+describe('execute: SetDeck', () => {
+  const deck = {
+    playerId: P1,
+    archetype: ' Izzet  Prowess ',
+    main: [{ quantity: 4, name: 'Lightning Bolt' }],
+    sideboard: [],
+  };
+
+  it('appends a DeckSet event with the schema-parsed payload', () => {
+    const { state, event } = unwrap(
+      execute(docWithTwoPlayers(), { type: 'SetDeck', payload: deck }),
+    );
+
+    expect(event).toMatchObject({
+      type: 'DeckSet',
+      seq: 4,
+      payload: { archetype: 'Izzet  Prowess' },
+    });
+    expect(state.players[P1].deck).toEqual({
+      archetype: 'Izzet  Prowess',
+      main: deck.main,
+      sideboard: [],
+    });
+  });
+
+  it('round-trips through commandOf', () => {
+    const { event } = unwrap(execute(docWithTwoPlayers(), { type: 'SetDeck', payload: deck }));
+    expect(commandOf(event)).toEqual({ type: 'SetDeck', payload: event.payload });
+  });
+
+  it('returns UNKNOWN_PLAYER for a player not registered', () => {
+    const result = execute(docWithTwoPlayers(), {
+      type: 'SetDeck',
+      payload: { ...deck, playerId: P3 },
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: 'UNKNOWN_PLAYER', seq: 4 } });
+  });
+
+  it.each([
+    ['a 61-character archetype', { archetype: 'a'.repeat(61) }],
+    ['quantity 0', { main: [{ quantity: 0, name: 'Lightning Bolt' }] }],
+    ['quantity 100', { main: [{ quantity: 100, name: 'Lightning Bolt' }] }],
+    [
+      '251 main deck cards',
+      { main: Array.from({ length: 251 }, (_, i) => ({ quantity: 1, name: `Card ${i}` })) },
+    ],
+  ])('returns INVALID_SCHEMA for %s', (_, override) => {
+    const result = execute(docWithTwoPlayers(), {
+      type: 'SetDeck',
+      payload: { ...deck, ...override },
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: 'INVALID_SCHEMA', seq: 4 } });
   });
 });
 

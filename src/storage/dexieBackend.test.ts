@@ -5,6 +5,8 @@ import {
   execute,
   playerResults,
   reduce,
+  type Command,
+  type PlayerResult,
   type TournamentCreatedPayload,
   type TournamentDocument,
 } from '../domain';
@@ -166,6 +168,7 @@ describe('DexieBackend tournaments', () => {
           players: playerResults(
             reduce(fixture.events as TournamentDocument['events'], TOURNAMENT_ID),
           ),
+          archetypes: [],
         },
       ],
     });
@@ -279,6 +282,139 @@ describe('DexieBackend tournaments', () => {
 
 const fixturePlayers = () => playerResults(reduce(fixtureDoc().events, TOURNAMENT_ID));
 
+/** The fixture plus a `DeckSet` with an archetype for each of its first two players. */
+function fixtureWithDecks(): TournamentDocument {
+  const doc = fixtureDoc();
+  const [first, second] = Object.keys(reduce(doc.events, TOURNAMENT_ID).players);
+  const at = doc.events.at(-1)!.at;
+  const deckSet = (seq: number, playerId: string, archetype: string) => ({
+    id: uuid(7000 + seq),
+    seq,
+    at,
+    type: 'DeckSet' as const,
+    payload: { playerId, archetype, main: [], sideboard: [] },
+  });
+  const next = doc.events.length + 1;
+  return {
+    ...doc,
+    events: [
+      ...doc.events,
+      deckSet(next, first, 'Burn'),
+      deckSet(next + 1, second, 'Amulet Titan'),
+    ],
+  };
+}
+
+describe('DexieBackend decks', () => {
+  it('returns archetypes (guests included) and archetype per registry player', async () => {
+    const { backend } = freshBackend();
+    let doc = newDoc({ name: 'Decks' });
+    for (const command of [
+      { type: 'PlayerRegistered', payload: { playerId: uuid(101), playerName: 'Alice' } },
+      {
+        type: 'PlayerRegistered',
+        payload: { playerId: uuid(102), playerName: 'Guest', guest: true },
+      },
+      { type: 'PlayerRegistered', payload: { playerId: uuid(103), playerName: 'Carmen' } },
+      {
+        type: 'SetDeck',
+        payload: { playerId: uuid(101), archetype: 'Burn', main: [], sideboard: [] },
+      },
+      {
+        type: 'SetDeck',
+        payload: { playerId: uuid(102), archetype: 'Elves', main: [], sideboard: [] },
+      },
+    ] satisfies Command[]) {
+      const result = execute(doc, command);
+      if (!result.ok) {
+        throw new Error(`expected ok, got ${JSON.stringify(result.error)}`);
+      }
+      doc = result.value.doc;
+    }
+
+    const saved = await backend.saveTournament(doc, null);
+    expect(saved.ok && saved.value.summary.archetypes).toEqual(['Burn', 'Elves']);
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value[0].archetypes).toEqual(['Burn', 'Elves']);
+    expect(list.ok && list.value[0].players.map((p) => [p.playerName, p.archetype])).toEqual([
+      ['Alice', 'Burn'],
+      ['Carmen', null],
+    ]);
+  });
+});
+
+describe('DexieBackend version 5 upgrade', () => {
+  /** A version 4 database (SPEC 10 schema) with rows that have no `archetypes`. */
+  async function seedVersion4(dbName: string, row: Record<string, unknown>) {
+    const v4 = new Dexie(dbName);
+    v4.version(4).stores({
+      tournaments: 'id, date, format, status, updatedAt',
+      players: 'id, name',
+      githubSummaries: '[repo+id]',
+    });
+    await v4.table('tournaments').add(row);
+    await v4.table('githubSummaries').add({
+      repo: 'owner/data',
+      id: TOURNAMENT_ID,
+      sha: 'abc',
+      summary: { id: TOURNAMENT_ID },
+    });
+    v4.close();
+  }
+
+  const v4Row = (doc: TournamentDocument) => ({
+    id: doc.id,
+    doc,
+    revision: 3,
+    name: 'Friday Night Magic',
+    date: '2026-10-11',
+    format: 'modern',
+    status: 'finished',
+    eventCount: doc.events.length,
+    playerCount: 8,
+    updatedAt: NOW,
+    // Version 4 rows have no `archetype` on their player results.
+    players: fixturePlayers().map((player) => {
+      const rest: Partial<PlayerResult> = { ...player };
+      delete rest.archetype;
+      return rest;
+    }),
+  });
+
+  it('opens a version 4 database at version 5 with archetypes filled and an empty cache', async () => {
+    const { dbName, backend } = freshBackend();
+    const doc = fixtureWithDecks();
+    const players = playerResults(reduce(doc.events, TOURNAMENT_ID));
+    await seedVersion4(dbName, v4Row(doc));
+
+    const raw = new ModoTorneoDb(dbName);
+    await raw.open();
+    expect(raw.verno).toBe(5);
+    expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual({
+      ...v4Row(doc),
+      players,
+      archetypes: ['Amulet Titan', 'Burn'],
+    });
+    expect(players.filter((p) => p.archetype !== null)).toHaveLength(2);
+    expect(await raw.githubSummaries.count()).toBe(0);
+    raw.close();
+
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value[0].archetypes).toEqual(['Amulet Titan', 'Burn']);
+  });
+
+  it('gives an invalid stored doc archetypes [], and it still fails on load', async () => {
+    const { dbName, backend } = freshBackend();
+    const broken = { ...fixtureDoc(), schemaVersion: 7 } as unknown as TournamentDocument;
+    await seedVersion4(dbName, v4Row(broken));
+
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value[0]).toMatchObject({ archetypes: [], players: [] });
+    const loaded = await backend.loadTournament(TOURNAMENT_ID);
+    expect(loaded.ok || loaded.error.code).toBe('INVALID_DOCUMENT');
+  });
+});
+
 describe('DexieBackend version 4 upgrade', () => {
   const v3Row = (doc: TournamentDocument) => ({
     id: doc.id,
@@ -311,15 +447,19 @@ describe('DexieBackend version 4 upgrade', () => {
     v3.close();
   }
 
-  it('opens a version 3 database at version 4 with players computed and an empty cache', async () => {
+  it('opens a version 3 database with players computed and an empty cache', async () => {
     const { dbName, backend } = freshBackend();
     const row = v3Row(fixtureDoc());
     await seedVersion3(dbName, row);
 
     const raw = new ModoTorneoDb(dbName);
     await raw.open();
-    expect(raw.verno).toBe(4);
-    expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual({ ...row, players: fixturePlayers() });
+    expect(raw.verno).toBe(5);
+    expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual({
+      ...row,
+      players: fixturePlayers(),
+      archetypes: [],
+    });
     expect(await raw.githubSummaries.count()).toBe(0);
     raw.close();
 
@@ -365,9 +505,13 @@ describe('DexieBackend version 3 upgrade', () => {
 
     const raw = new ModoTorneoDb(dbName);
     await raw.open();
-    // Version 4 (SPEC 10) runs after version 3 and adds `players`.
-    expect(raw.verno).toBe(4);
-    expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual({ ...row, players: fixturePlayers() });
+    // Versions 4 (SPEC 10) and 5 (SPEC 11) run after version 3 and add `players`, `archetypes`.
+    expect(raw.verno).toBe(5);
+    expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual({
+      ...row,
+      players: fixturePlayers(),
+      archetypes: [],
+    });
     expect(await raw.githubSummaries.count()).toBe(0);
     raw.close();
   });
@@ -409,8 +553,8 @@ describe('DexieBackend version 2 upgrade', () => {
 
     const raw = new ModoTorneoDb(dbName);
     await raw.open();
-    // Versions 3 (SPEC 09) and 4 (SPEC 10) run after the version 2 upgrade.
-    expect(raw.verno).toBe(4);
+    // Versions 3 (SPEC 09), 4 (SPEC 10) and 5 (SPEC 11) run after the version 2 upgrade.
+    expect(raw.verno).toBe(5);
     expect((await raw.tournaments.get(TOURNAMENT_ID))?.playerCount).toBe(8);
     raw.close();
   });

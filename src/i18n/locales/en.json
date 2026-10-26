@@ -60,6 +60,7 @@
       "format": "Format",
       "date": "Date",
       "tournament": "Tournament",
+      "deck": "Deck",
       "status": "Status",
       "swiss": "Swiss",
       "swissRank": "Swiss rank",
@@ -171,6 +172,25 @@
         "cancel": "Cancel",
         "confirm": "Drop"
       }
+    },
+    "deck": {
+      "button": "Deck",
+      "buttonLabel": "Deck for {{name}}",
+      "title": "Deck · {{name}}",
+      "archetype": "Archetype",
+      "decklist": "Decklist",
+      "placeholder": "Paste a Moxfield or Arena text export",
+      "main": "Main deck ({{count}})",
+      "sideboard": "Sideboard ({{count}})",
+      "card": "{{quantity}} {{name}}",
+      "unparsed_one": "{{count}} line was not read:",
+      "unparsed_other": "{{count}} lines were not read:",
+      "unparsedLine": "Line {{line}}: {{text}}",
+      "capped": "{{name}}: quantity capped at 99.",
+      "save": "Save",
+      "clear": "Clear deck",
+      "column": "Deck",
+      "none": "—"
     },
     "rounds": {
       "tabPlayers": "Players",
@@ -362,6 +382,8 @@
         "TopCutStarted_other": "{{count}} top cuts started",
         "TournamentFinished_one": "{{count}} tournament finished",
         "TournamentFinished_other": "{{count}} tournaments finished",
+        "DeckSet_one": "{{count}} deck change",
+        "DeckSet_other": "{{count}} deck changes",
         "RolledBack_one": "{{count}} rollback",
         "RolledBack_other": "{{count}} rollbacks"
       },
@@ -377,6 +399,9 @@
         "RoundClosed": "Round {{round}} closed",
         "TopCutStarted": "Top {{size}} started, best of {{bestOf}}",
         "TournamentFinished": "Tournament finished",
+        "DeckSet": "{{name}}: deck {{archetype}}",
+        "DeckSetList": "{{name}}: decklist",
+        "DeckSetCleared": "{{name}}: deck cleared",
         "RolledBack": "Rolled back to #{{seq}}"
       }
     }

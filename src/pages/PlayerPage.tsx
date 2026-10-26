@@ -137,12 +137,13 @@ export function PlayerPage() {
             </Table.ScrollContainer>
 
             <Title order={2}>{t('players.profile.history')}</Title>
-            <Table.ScrollContainer minWidth={720}>
+            <Table.ScrollContainer minWidth={820}>
               <Table withTableBorder fz="sm" aria-label={t('players.profile.historyLabel')}>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>{t('players.profile.date')}</Table.Th>
                     <Table.Th>{t('players.profile.tournament')}</Table.Th>
+                    <Table.Th>{t('players.profile.deck')}</Table.Th>
                     <Table.Th>{t('players.profile.format')}</Table.Th>
                     <Table.Th>{t('players.profile.status')}</Table.Th>
                     <Table.Th>{t('players.profile.swiss')}</Table.Th>
@@ -209,6 +210,7 @@ function HistoryRow({ row }: { row: PlayerHistoryRow }) {
           )}
         </Group>
       </Table.Td>
+      <Table.Td>{result.archetype ?? format.none}</Table.Td>
       <Table.Td>{t(`formats.${row.format}`)}</Table.Td>
       <Table.Td>{t(`statuses.${row.status}`)}</Table.Td>
       <Table.Td>

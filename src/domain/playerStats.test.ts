@@ -42,6 +42,24 @@ const resultOf = (log: LogBuilder, playerId: string) => {
 };
 
 describe('playerResults', () => {
+  it("carries each registry player's archetype, null without one", () => {
+    const log = registeredLog(3)
+      .add('PlayerRegistered', { playerId: P4, playerName: 'Guest', guest: true })
+      .add('DeckSet', { playerId: P1, archetype: 'Burn', main: [], sideboard: [] })
+      .add('DeckSet', {
+        playerId: P2,
+        main: [{ quantity: 4, name: 'Opt' }],
+        sideboard: [],
+      })
+      .add('DeckSet', { playerId: P4, archetype: 'Elves', main: [], sideboard: [] });
+
+    expect(playerResults(stateOf(log)).map((r) => [r.playerId, r.archetype])).toEqual([
+      [P1, 'Burn'],
+      [P2, null],
+      [P3, null],
+    ]);
+  });
+
   it('gives guests no row, and dropped players and late entries one', () => {
     const guest = uuid(900);
     const late = uuid(901);
@@ -186,6 +204,7 @@ function result(playerId: string, parts: ResultParts = {}): PlayerResult {
           },
     swissRank: null,
     placing: placing === null ? null : { from: placing[0], to: placing[1] },
+    archetype: null,
   };
 }
 

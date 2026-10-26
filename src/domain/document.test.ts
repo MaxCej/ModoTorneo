@@ -67,6 +67,11 @@ describe('parseTournamentDocument', () => {
     ]);
   });
 
+  it('gives every fixture player no deck', () => {
+    const { players } = parsedFixture().state;
+    expect(Object.values(players).map((p) => p.deck)).toEqual(Array(8).fill(null));
+  });
+
   it('reads a TopCutStarted without bestOf as best of three', () => {
     expect(parsedFixture().state.topCutBestOf).toBe(3);
   });

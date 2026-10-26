@@ -1,5 +1,6 @@
 import { domainError, type DomainError } from './errors';
 import type {
+  DeckSet,
   PlayersSwapped,
   ResultReported,
   RoundClosed,
@@ -122,6 +123,9 @@ export function validate(
 
     case 'TournamentFinished':
       return validateFinished(state, event);
+
+    case 'DeckSet':
+      return validateDeckSet(state, event);
 
     case 'RolledBack': {
       // Allowed in any status. Voided and RolledBack seqs are never effective (no redo).
@@ -488,6 +492,28 @@ function validateSwap(state: TournamentState, event: PlayersSwapped): DomainErro
   const reported = [matchA!, matchB!].find((m) => m.playerB !== null && m.result !== null);
   if (reported !== undefined) {
     return domainError('INVALID_SWAP', `Match ${reported.matchId} already has a result`, event.seq);
+  }
+  return null;
+}
+
+/** Any status; registered players only (dropped ones too); distinct names per section. */
+function validateDeckSet(state: TournamentState, event: DeckSet): DomainError | null {
+  const { playerId, main, sideboard } = event.payload;
+  if (!(playerId in state.players)) {
+    return domainError('UNKNOWN_PLAYER', `Player ${playerId} is not registered`, event.seq);
+  }
+  for (const [section, cards] of [
+    ['main deck', main],
+    ['sideboard', sideboard],
+  ] as const) {
+    const seen = new Set<string>();
+    for (const { name } of cards) {
+      const key = name.toLowerCase();
+      if (seen.has(key)) {
+        return domainError('INVALID_DECK', `${name} is listed twice in the ${section}`, event.seq);
+      }
+      seen.add(key);
+    }
   }
   return null;
 }

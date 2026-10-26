@@ -135,6 +135,14 @@ function useEventLabel() {
       }
       case 'TopCutStarted':
         return t(key, { size: event.payload.size, bestOf: event.payload.bestOf ?? 3 });
+      case 'DeckSet': {
+        const { playerId, archetype, main, sideboard } = event.payload;
+        if (archetype !== undefined) {
+          return t(key, { name: name(playerId), archetype });
+        }
+        const list = main.length > 0 || sideboard.length > 0;
+        return t(list ? `${key}List` : `${key}Cleared`, { name: name(playerId) });
+      }
       case 'RolledBack':
         return t(key, { seq: event.payload.toSeq });
       case 'TournamentCreated':

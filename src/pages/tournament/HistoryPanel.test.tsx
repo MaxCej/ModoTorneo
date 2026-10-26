@@ -125,6 +125,37 @@ describe('HistoryPanel', () => {
     ]);
   });
 
+  it('labels a DeckSet with an archetype, a list only, or nothing', () => {
+    const list = [{ quantity: 4, name: 'Opt' }];
+    const log = closedRound()
+      .add('DeckSet', { playerId: P1, archetype: 'Burn', main: list, sideboard: [] })
+      .add('DeckSet', { playerId: P2, main: [], sideboard: list })
+      .add('DeckSet', { playerId: P1, main: [], sideboard: [] });
+    renderPanel(log.events);
+
+    expect(
+      bodyRows()
+        .slice(0, 3)
+        .map((row) => rowCells(row)[1]),
+    ).toEqual(['Player 1: deck cleared', 'Player 2: decklist', 'Player 1: deck Burn']);
+  });
+
+  it('counts deck changes in the rollback preview', () => {
+    const deck = { archetype: 'Burn', main: [], sideboard: [] };
+    const log = closedRound()
+      .add('DeckSet', { playerId: P1, ...deck })
+      .add('DeckSet', { playerId: P2, ...deck })
+      .add('DeckSet', { playerId: P3, ...deck });
+    renderPanel(log.events);
+
+    fireEvent.click(within(rowOf(11)).getByRole('button', { name: 'Roll back to here' }));
+    expect(screen.getByText('1 deck change')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(within(rowOf(9)).getByRole('button', { name: 'Roll back to here' }));
+    expect(screen.getByText('3 deck changes')).toBeInTheDocument();
+  });
+
   it('labels a TopCutStarted without bestOf as best of 3', () => {
     const log = closedRound().add('TopCutStarted', { size: 4 });
     renderPanel(log.events);

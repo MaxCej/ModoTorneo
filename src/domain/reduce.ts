@@ -37,6 +37,7 @@ export function apply(
         guest: guest ?? false,
         dropped: false,
         registeredAtRound: state.rounds.length,
+        deck: null,
       };
       return { ...next, players: { ...state.players, [playerId]: entry } };
     }
@@ -123,6 +124,14 @@ export function apply(
 
     case 'TournamentFinished':
       return { ...next, status: 'finished' };
+
+    case 'DeckSet': {
+      const { playerId, ...deck } = event.payload;
+      const empty =
+        deck.archetype === undefined && deck.main.length === 0 && deck.sideboard.length === 0;
+      const entry = { ...state.players[playerId], deck: empty ? null : deck };
+      return { ...next, players: { ...state.players, [playerId]: entry } };
+    }
 
     case 'RolledBack':
       throw new Error('apply: RolledBack is handled by reduce');

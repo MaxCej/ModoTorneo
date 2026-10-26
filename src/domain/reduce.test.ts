@@ -67,8 +67,16 @@ describe('reduce', () => {
         guest: false,
         dropped: false,
         registeredAtRound: 0,
+        deck: null,
       },
-      [P2]: { playerId: P2, playerName: 'Bob', guest: false, dropped: false, registeredAtRound: 0 },
+      [P2]: {
+        playerId: P2,
+        playerName: 'Bob',
+        guest: false,
+        dropped: false,
+        registeredAtRound: 0,
+        deck: null,
+      },
     });
     expect(state.players[P2]).not.toHaveProperty('deckId');
     expect(state.lastSeq).toBe(3);
@@ -153,6 +161,77 @@ describe('reduce', () => {
   it('throws on an event that breaks a rule', () => {
     const { events } = logBuilder().add('PlayerDropped', { playerId: P1 });
     expect(corruptError(events)).toMatchObject({ code: 'UNKNOWN_PLAYER', seq: 2 });
+  });
+});
+
+describe('reduce: DeckSet', () => {
+  const BURN = {
+    archetype: 'Burn',
+    main: [{ quantity: 4, name: 'Lightning Bolt' }],
+    sideboard: [{ quantity: 2, name: 'Path to Exile' }],
+  };
+  const LIST_ONLY = { main: [{ quantity: 4, name: 'Thoughtseize' }], sideboard: [] };
+
+  const withPlayers = () =>
+    logBuilder()
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice' })
+      .add('PlayerRegistered', { playerId: P2, playerName: 'Bob' });
+
+  it('sets the deck of one player', () => {
+    const state = reduce(
+      withPlayers().add('DeckSet', { playerId: P1, ...BURN }).events,
+      TOURNAMENT_ID,
+    );
+
+    expect(state.players[P1].deck).toEqual(BURN);
+    expect(state.players[P2].deck).toBeNull();
+  });
+
+  it('replaces the deck with a later DeckSet', () => {
+    const { events } = withPlayers()
+      .add('DeckSet', { playerId: P1, ...BURN })
+      .add('DeckSet', { playerId: P1, ...LIST_ONLY });
+
+    expect(reduce(events, TOURNAMENT_ID).players[P1].deck).toEqual(LIST_ONLY);
+  });
+
+  it('clears the deck with a DeckSet that has nothing in it', () => {
+    const { events } = withPlayers()
+      .add('DeckSet', { playerId: P1, ...BURN })
+      .add('DeckSet', { playerId: P1, main: [], sideboard: [] });
+
+    expect(reduce(events, TOURNAMENT_ID).players[P1].deck).toBeNull();
+  });
+
+  it('removes the deck when the player unregisters', () => {
+    const { events } = withPlayers()
+      .add('DeckSet', { playerId: P1, ...BURN })
+      .add('PlayerUnregistered', { playerId: P1 })
+      .add('PlayerRegistered', { playerId: P1, playerName: 'Alice' });
+
+    expect(reduce(events, TOURNAMENT_ID).players[P1].deck).toBeNull();
+  });
+
+  it('keeps the deck when the player drops', () => {
+    const { events } = withPlayers()
+      .add('DeckSet', { playerId: P1, ...BURN })
+      .add('PlayerDropped', { playerId: P1 });
+
+    expect(reduce(events, TOURNAMENT_ID).players[P1]).toMatchObject({ dropped: true, deck: BURN });
+  });
+
+  it('restores the previous deck on a rollback before the DeckSet', () => {
+    const { events } = withPlayers()
+      .add('DeckSet', { playerId: P1, ...BURN })
+      .add('DeckSet', { playerId: P1, ...LIST_ONLY })
+      .add('RolledBack', { toSeq: 4 });
+
+    expect(reduce(events, TOURNAMENT_ID).players[P1].deck).toEqual(BURN);
+  });
+
+  it('throws UNKNOWN_PLAYER for a DeckSet of an unregistered player', () => {
+    const { events } = withPlayers().add('DeckSet', { playerId: P3, ...BURN });
+    expect(corruptError(events)).toMatchObject({ code: 'UNKNOWN_PLAYER', seq: 4 });
   });
 });
 

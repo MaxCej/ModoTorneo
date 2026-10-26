@@ -1,13 +1,18 @@
 import { MantineProvider } from '@mantine/core';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BestOf, Match, MatchResult } from '../../domain';
+import type { BestOf, Deck, Match, MatchResult } from '../../domain';
 import { matchId, PLAYERS } from '../../domain/fixtures/builders';
 import { MatchRow, RESULT_PRESETS, TOP_CUT_PRESETS } from './MatchRow';
 
 const [P1, P2] = PLAYERS;
 
-function renderRow(match: Match, readOnly = false, topCutBestOf?: BestOf) {
+function renderRow(
+  match: Match,
+  readOnly = false,
+  topCutBestOf?: BestOf,
+  decks: { deckA?: Deck | null; deckB?: Deck | null } = {},
+) {
   const onReport = vi.fn<(result: MatchResult) => void>();
   render(
     <MantineProvider env="test">
@@ -19,6 +24,7 @@ function renderRow(match: Match, readOnly = false, topCutBestOf?: BestOf) {
         stage={topCutBestOf === undefined ? 'swiss' : 'topCut'}
         bestOf={topCutBestOf}
         onReport={onReport}
+        {...decks}
       />
     </MantineProvider>,
   );
@@ -49,6 +55,16 @@ describe('MatchRow', () => {
     expect(row.getByText('Table 3')).toBeInTheDocument();
     expect(row.getByText('Alice (3 pts, 1-0-0)')).toBeInTheDocument();
     expect(row.getByText('Bruno (0 pts, 0-1-0)')).toBeInTheDocument();
+  });
+
+  it("shows each player's archetype under the name, and nothing without one", () => {
+    const { row } = renderRow(open(), false, undefined, {
+      deckA: { archetype: 'Burn', main: [], sideboard: [] },
+      deckB: { main: [{ quantity: 4, name: 'Opt' }], sideboard: [] },
+    });
+    const nameA = row.getByText('Alice (3 pts, 1-0-0)');
+    expect(nameA.nextElementSibling).toHaveTextContent('Burn');
+    expect(row.getByText('Bruno (0 pts, 0-1-0)').nextElementSibling).toBeNull();
   });
 
   it.each(PRESET_CASES)('reports %s as its MatchResult', (label, result) => {

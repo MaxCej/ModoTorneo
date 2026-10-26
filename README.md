@@ -88,6 +88,7 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
 | `RoundClosed`              | round                                                           |
 | `TopCutStarted`            | size (4, 8, 16 or 32), optional bestOf (3 or 5; missing = 3)    |
 | `TournamentFinished`       | (none)                                                          |
+| `DeckSet`                  | playerId, optional archetype, main, sideboard: replaces a deck  |
 | `RolledBack`               | toSeq: cancels every effective event after it                   |
 
 - **Auto swiss rounds:** `swissRounds: null` is fixed by the first swiss round, from the number of
@@ -99,7 +100,8 @@ events. Events carry a gapless `seq`, which orders the log; `at` is informationa
 - **Guests:** a `PlayerRegistered` with `guest: true` plays in that tournament only. Guests are
   never added to the global player registry.
 
-`Player` is a global entity shared across tournaments. Decks are defined in a later spec.
+`Player` is a global entity shared across tournaments. Decks belong to a registration (see
+[Decks and archetypes](#decks-and-archetypes)); `deckId` on `PlayerRegistered` is unused.
 
 ## Pairing and scoring
 
@@ -177,6 +179,51 @@ profile add these up and never replay an event log.
 - **Swiss rank:** the rank in the standings after the last closed swiss round. **Top cut
   place:** as in the placings table.
 
+## Decks and archetypes
+
+Each registered player (guests included) has at most one deck per tournament: the latest
+`DeckSet` for that player (the `SetDeck` command). A deck has an optional archetype label (1–60
+characters) and an optional list: a main deck (up to 250 distinct cards) and a sideboard (up to
+100), each card a quantity from 1 to 99 and a name stored as typed. A `DeckSet` with nothing in it
+clears the deck.
+
+- **Any status:** decks can be set or changed in setup, while running, during the top cut and
+  after the tournament finished. Dropped players keep their deck; removing a registration in
+  setup removes it.
+- **Archetype suggestions:** the archetypes of every stored tournament with the same format, and
+  of the current tournament. A label that matches a suggestion in another case is saved with the
+  suggestion's spelling, so "izzet prowess" becomes "Izzet Prowess".
+- **History:** each `DeckSet` is one History row ("Ana: deck Burn", "Ana: decklist", "Ana: deck
+  cleared"); a rollback restores the previous deck, and "Redo pairings" keeps decks set during
+  the round.
+- **Summaries:** each player result carries `archetype`, and each tournament summary carries
+  `archetypes` (every registered player, guests included), so lists and profiles never replay a
+  log.
+
+### Paste format
+
+The decklist box reads a Moxfield or MTG Arena text export, or plain `N Card Name` lines
+(`src/domain/decklist.ts`):
+
+```text
+Deck
+4 Lightning Bolt (2X2) 117
+4x Goblin Guide
+18 Mountain *F*
+
+Sideboard
+2 Smash to Smithereens [ALA] 114
+SB: 1 Abrade
+```
+
+- `N Name` or `Nx Name`, N from 1 to 99. A trailing set and collector number (`(SET) 123`,
+  `[SET] 123`) and foil or etched markers (`*F*`, `*E*`) are dropped.
+- `Deck`, `Main` or `Mainboard` switch to the main deck; `Sideboard` or `SB` (optional `:`, any
+  case) switch to the sideboard, and so does the first blank line after a main deck card. An
+  `SB: ` prefix puts one line in the sideboard.
+- The same name twice in a section is merged (first spelling kept, at most 99, with a warning).
+- Any other line is listed as "Line N: …" and not saved; saving is still allowed.
+
 ## Restore, rollback and redo pairings
 
 - **Restore:** every change is saved as it happens. Opening a tournament from the list replays
@@ -186,8 +233,8 @@ profile add these up and never replay an event log.
   counts. Nothing is ever deleted, and an undone event cannot be restored. Rolling back past
   "Close round N" reopens that round, and past "Finish tournament" returns it to running.
 - **Redo pairings:** while a swiss round is open, "Redo pairings" pairs the same round again. It
-  voids the round's results and swaps, and keeps the drops, registrations and detail changes
-  made during the round (they are appended again after the rollback). So a late arrival is
+  voids the round's results and swaps, and keeps the drops, registrations, detail changes and
+  decks made during the round (they are appended again after the rollback). So a late arrival is
   paired and a dropped player is not. The rollback, the carried events and the new pairing are
   saved together: if the pairing fails, nothing changes. To redo a closed round, roll back past
   "Close round N" first.
@@ -215,9 +262,9 @@ loaded lazily, one chunk each.
   - **Tabs:** "Players" (registration), "Standings", "Top cut" (once it has started), one tab per
     round, and "History". Top cut round tabs are named "Quarterfinals", "Semifinals", "Final"
     (and "Round of 16", "Round of 32"). The open round opens by default.
-  - **Top cut tab:** the bracket, one column per round, with "(seed) name", the score and the
-    winner in bold, and the placings table.
-  - **Standings tab:** rank, player, MP, W-L-D, OMW%, GW% and OGW% (2 decimals), with a
+  - **Top cut tab:** the bracket, one column per round, with "(seed) name" and the archetype
+    under it, the score and the winner in bold, and the placings table with a "Deck" column.
+  - **Standings tab:** rank, player, deck (archetype), MP, W-L-D, OMW%, GW% and OGW% (2 decimals), with a
     "Dropped" badge. "After round" picks any closed swiss round (the last one by default).
     Before round 1 is closed it says so.
   - **History tab:** every event, newest first, with its number, a label ("Round 2: Ana 2-1
@@ -226,7 +273,7 @@ loaded lazily, one chunk each.
   - **Round tab:** one row per match with one-click results (2-0, 2-1, 1-2, 0-2, 1-1-1, ID,
     Unplayed) or a custom best-of-three score, always from the first player's side. A result
     can be changed until the round is closed. Each player shows points and W-L-D from earlier
-    rounds. "By player" lists everyone alphabetically with table and opponent. "Swap players"
+    rounds, with the archetype under the name. "By player" lists everyone alphabetically with table and opponent. "Swap players"
     trades two players' seats in matches without a result. Rematches and repeated byes show as
     warnings. In the top cut the one-click results are winner-only for the best-of (best of five:
     3-0, 3-1, 3-2, 2-3, 1-3, 0-3), with no draw, ID or Unplayed.
@@ -234,7 +281,12 @@ loaded lazily, one chunk each.
     player (or filter and press Enter) to register them; "Remove" undoes a registration in setup.
     "New player" adds to the registry and registers; "Add guest" registers for this tournament
     only. A name that already exists needs a second Enter. While running, late entries are
-    allowed and "Drop" asks for confirmation.
+    allowed and "Drop" asks for confirmation. The archetype shows under each registered name.
+  - **Deck:** the "Deck" button on every registered player (any status, dropped players
+    included) opens the deck modal: "Archetype" with suggestions from the same format, and
+    "Decklist" for a pasted text export, with a live preview of the main deck and sideboard
+    counts and warnings for lines that were not read. "Save" stores both; "Clear deck" removes
+    them.
   - **Autosave:** every change is applied at once and saved in order. If another tab saved first,
     or the tournament was deleted elsewhere, the page reloads the stored version and says so. If
     the save cannot reach the storage (no network), the change stays on the page with "Not saved"
@@ -243,8 +295,8 @@ loaded lazily, one chunk each.
   match win %, game win % and last played date. "Search" filters by name; every column header
   sorts (click again to flip), and empty values ("—") stay last. Guests are never listed.
 - **Player profile (`/#/players/<id>`):** totals (tournaments, record, win rates, byes, top cuts
-  and best top cut finish), a "By format" table, and the tournament history with date, format,
-  status, swiss record (plus byes), swiss rank and top cut place, with a "Dropped" badge.
+  and best top cut finish), a "By format" table, and the tournament history with date, deck
+  (archetype), format, status, swiss record (plus byes), swiss rank and top cut place, with a "Dropped" badge.
   "Rename" changes the registry name (another player's name needs "Rename anyway"); past
   tournaments keep the name they were played with. Player names in Standings, the registered
   list, the read-only registry list, the bracket and the placings link here; guests do not.
@@ -262,8 +314,9 @@ and read once per page load (`localStorage` key `modotorneo.storage`).
 - **Tables:** `tournaments` (one row per tournament: the whole `TournamentDocument` plus summary
   fields recomputed on every save, including `playerCount` and the per-player results `players`)
   and `players` (the global player registry). Schema changes are new Dexie versions with an
-  upgrade function (now version 4: version 3 adds the GitHub summary cache `githubSummaries`,
-  version 4 adds the per-player results to every row and clears that cache).
+  upgrade function (now version 5: version 3 adds the GitHub summary cache `githubSummaries`,
+  version 4 adds the per-player results to every row and clears that cache, version 5 adds
+  `archetype` to those results and `archetypes` to every row and clears that cache again).
 - **Validation:** every document is checked with `parseTournamentDocument` on save and on load. A
   corrupted row is reported as `INVALID_DOCUMENT`, never loaded silently.
   Players are checked with `PlayerSchema` the same way; an invalid player is `INVALID_PLAYER`.
@@ -349,7 +402,7 @@ players.
 | Service      | Use                                     | Notes                                                       |
 | ------------ | --------------------------------------- | ----------------------------------------------------------- |
 | GitHub API   | Persist tournament data in a repository | Fine-grained token for one repository, kept in the browser. |
-| Moxfield     | Import decklists from a deck URL        | No official public API; may need a text-export fallback.    |
+| Moxfield     | Decklists from a pasted text export     | No official public API, so no URL import.                   |
 | Scryfall API | Card data and images                    | Public API with rate limits.                                |
 | MTGTop8      | Publish results (future)                | No public API known; likely manual export format.           |
 
@@ -396,7 +449,6 @@ The roadmap and design decisions live in the specs under `specs/`.
 
 ## Open Questions for Planning
 
-- Moxfield integration: direct fetch (CORS limits) vs paste-export fallback.
 - Single-TO use vs multiple organizers sharing one data repository.
 - Which formats and tiebreaker rules ship first.
 - Offline support (PWA) for venues without reliable internet.
@@ -408,8 +460,11 @@ drops), swiss pairings, result entry, swaps, standings with MTR tiebreakers and 
 autosaved to IndexedDB. The History tab rolls back to any earlier event, and "Redo pairings"
 re-pairs the open swiss round. An optional Top 4 / 8 / 16 / 32 (best of three or five) runs to a
 final with a bracket and placings. A players page and a profile per registry player show match
-and game win rates, overall and per format, and the tournament history. Data can be stored in the browser or in a private GitHub
-repository (one commit per save), chosen on the Settings page.
+and game win rates, overall and per format, and the tournament history. Each registration can
+carry a deck: an archetype (with suggestions from the same format) and a pasted Moxfield or Arena
+list, shown in the registered list, the rounds, Standings, the top cut and the profile. Data can
+be stored in the browser or in a private GitHub repository (one commit per save), chosen on the
+Settings page.
 
 ## License
 

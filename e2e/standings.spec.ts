@@ -29,9 +29,9 @@ async function playRound(page: Page, round: number, preset: string) {
   await expect(page.getByRole('button', { name: `Close round ${round}` })).toBeHidden();
 }
 
-/** The MP column, top to bottom. */
+/** The MP column (after Rank, Player and Deck), top to bottom. */
 async function matchPoints(page: Page, round: number): Promise<string[]> {
-  return bodyRows(page, round).locator('td:nth-child(3)').allInnerTexts();
+  return bodyRows(page, round).locator('td:nth-child(4)').allInnerTexts();
 }
 
 test('shows swiss standings after each closed round', async ({ page }) => {

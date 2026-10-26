@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   createTournament,
+  execute,
   playerResults,
   reduce,
+  type Command,
   type TournamentCreatedPayload,
   type TournamentDocument,
 } from '../../domain';
@@ -241,6 +243,46 @@ describe('GitHubBackend listTournaments', () => {
     // A fresh cache database recomputes the summary from the file.
     const cold = await open(undefined, `${ID}-cold-${dbCount}`).listTournaments();
     expect(cold.ok && cold.value[0].players).toEqual(players);
+  });
+
+  it('carries archetypes (guests included) and archetype per registry player', async () => {
+    const { backend, open } = setup();
+    let doc = newDoc({ name: 'Decks' });
+    const commands: Command[] = [
+      { type: 'PlayerRegistered', payload: { playerId: uuid(101), playerName: 'Alice' } },
+      {
+        type: 'PlayerRegistered',
+        payload: { playerId: uuid(102), playerName: 'Guest', guest: true },
+      },
+      { type: 'PlayerRegistered', payload: { playerId: uuid(103), playerName: 'Carmen' } },
+      {
+        type: 'SetDeck',
+        payload: { playerId: uuid(101), archetype: 'Burn', main: [], sideboard: [] },
+      },
+      {
+        type: 'SetDeck',
+        payload: { playerId: uuid(102), archetype: 'Elves', main: [], sideboard: [] },
+      },
+    ];
+    for (const command of commands) {
+      const result = execute(doc, command);
+      if (!result.ok) {
+        throw new Error(`expected ok, got ${JSON.stringify(result.error)}`);
+      }
+      doc = result.value.doc;
+    }
+
+    const saved = await backend.saveTournament(doc, null);
+    expect(saved.ok && saved.value.summary.archetypes).toEqual(['Burn', 'Elves']);
+    const cached = await backend.listTournaments();
+    expect(cached.ok && cached.value[0].archetypes).toEqual(['Burn', 'Elves']);
+    // A fresh cache database recomputes the summary from the file.
+    const cold = await open(undefined, `decks-cold-${dbCount}`).listTournaments();
+    expect(cold.ok && cold.value[0].archetypes).toEqual(['Burn', 'Elves']);
+    expect(cold.ok && cold.value[0].players.map((p) => [p.playerName, p.archetype])).toEqual([
+      ['Alice', 'Burn'],
+      ['Carmen', null],
+    ]);
   });
 
   it('returns an empty list for an empty repository', async () => {

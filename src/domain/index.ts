@@ -2,6 +2,7 @@
 // callers go through `execute`, `createTournament`, `reduce` and `parseTournamentDocument`.
 export * from './schemas/common';
 export { DatasetSchema, type Dataset } from './schemas/dataset';
+export * from './schemas/deck';
 export * from './schemas/document';
 export * from './schemas/events';
 export * from './schemas/matchResult';
@@ -17,6 +18,15 @@ export {
   type ExecuteAllResult,
   type ExecuteResult,
 } from './commands';
+export {
+  archetypeSuggestions,
+  canonicalArchetype,
+  cardCount,
+  formatDecklist,
+  parseDecklist,
+  tournamentArchetypes,
+  type ParsedDecklist,
+} from './decklist';
 export { parseTournamentDocument } from './document';
 export { CorruptLogError, type DomainError, type DomainErrorCode } from './errors';
 export {
