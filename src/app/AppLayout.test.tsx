@@ -72,7 +72,7 @@ describe('AppLayout', () => {
 
   it('marks Players active on /#/players/:id', async () => {
     renderAt('#/players/00000000-0000-4000-8000-000000000001');
-    await screen.findByRole('heading', { level: 1 });
+    expect(await screen.findByText('Player not found')).toBeInTheDocument();
     expect(nav().getByRole('link', { name: 'Players' })).toHaveAttribute('data-active', 'true');
     expect(nav().getByRole('link', { name: 'Tournaments' })).not.toHaveAttribute('data-active');
   });

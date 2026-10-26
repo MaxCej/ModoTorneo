@@ -45,6 +45,28 @@
     "sortIndicator": {
       "ascending": "▲",
       "descending": "▼"
+    },
+    "profile": {
+      "notFound": "Player not found",
+      "backToList": "Players",
+      "totalsLabel": "Totals",
+      "byes": "Byes",
+      "topCuts": "Top cuts",
+      "bestPlacing": "Best top cut finish",
+      "noTournaments": "{{name}} has not played in any tournament yet.",
+      "byFormat": "By format",
+      "history": "History",
+      "historyLabel": "Tournament history",
+      "format": "Format",
+      "date": "Date",
+      "tournament": "Tournament",
+      "status": "Status",
+      "swiss": "Swiss",
+      "swissRank": "Swiss rank",
+      "topCut": "Top cut",
+      "swissWithByes_one": "{{record}} +{{count}} bye",
+      "swissWithByes_other": "{{record}} +{{count}} byes",
+      "rankOf": "{{rank}} of {{players}}"
     }
   },
   "newTournament": {
