@@ -1,4 +1,6 @@
-import { lazy } from 'react';
+import { Center, Loader } from '@mantine/core';
+import { lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createHashRouter, type RouteObject } from 'react-router';
 import { AppLayout } from './app/AppLayout';
 
@@ -23,9 +25,19 @@ const PlayerPage = lazy(() =>
 const MetagamePage = lazy(() =>
   import('./pages/MetagamePage').then((m) => ({ default: m.MetagamePage })),
 );
+const TimerPage = lazy(() => import('./pages/TimerPage').then((m) => ({ default: m.TimerPage })));
 const NotFoundPage = lazy(() =>
   import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
 );
+
+function TimerFallback() {
+  const { t } = useTranslation();
+  return (
+    <Center py="xl">
+      <Loader aria-label={t('app.loading')} />
+    </Center>
+  );
+}
 
 export const routes: RouteObject[] = [
   {
@@ -41,6 +53,15 @@ export const routes: RouteObject[] = [
       { path: '/settings', element: <SettingsPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
+  },
+  // The big timer (SPEC 13) has no app navigation: it is projected for players.
+  {
+    path: '/tournaments/:id/timer',
+    element: (
+      <Suspense fallback={<TimerFallback />}>
+        <TimerPage />
+      </Suspense>
+    ),
   },
 ];
 

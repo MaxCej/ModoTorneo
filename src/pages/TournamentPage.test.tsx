@@ -7,7 +7,9 @@ import {
   CREATED_PAYLOAD,
   PLAYERS,
   TOURNAMENT_ID,
+  WIN_A,
   addClosedRound,
+  matchId,
   pairing,
   playerIds,
   registeredLog,
@@ -16,6 +18,7 @@ import {
   uuid,
 } from '../domain/fixtures/builders';
 import { DexieBackend, type StorageBackend } from '../storage';
+import { readTimerRecord, timerKey } from '../storage/timerStorage';
 import { useTournamentStore } from '../store/tournamentStore';
 import { TournamentPage } from './TournamentPage';
 
@@ -43,6 +46,7 @@ let dbCount = 0;
 let backend: StorageBackend;
 
 beforeEach(() => {
+  localStorage.clear();
   dbCount += 1;
   backend = new DexieBackend({ dbName: `test-tournament-page-${dbCount}` });
   mocks.current.backend = backend;
@@ -641,5 +645,68 @@ describe('TournamentPage top cut', () => {
       'RoundPaired',
     ]);
     expect(stored.ok && stored.value.state).toMatchObject({ status: 'topCut', topCut: 4 });
+  });
+});
+
+describe('TournamentPage round timer', () => {
+  it('shows no timer and writes no record without an open round', async () => {
+    // The store still holds the previous test's tournament, which has the same id.
+    useTournamentStore.setState({ status: 'idle', doc: null, state: null });
+    await backend.saveTournament(autoDoc(4), null);
+    renderPage();
+    await screen.findByRole('heading', { name: CREATED_PAYLOAD.name, level: 1 });
+    expect(screen.queryByRole('region', { name: 'Round timer' })).not.toBeInTheDocument();
+    expect(localStorage.getItem(timerKey(TOURNAMENT_ID))).toBeNull();
+  });
+
+  it('shows the open round timer, not started, and stores the open round', async () => {
+    await backend.saveTournament(runningDoc(4), null);
+    renderPage();
+    const card = within(await screen.findByRole('region', { name: 'Round timer' }));
+    expect(card.getByText('Not started')).toBeInTheDocument();
+    expect(readTimerRecord(TOURNAMENT_ID)).toEqual({
+      tournamentName: CREATED_PAYLOAD.name,
+      openRound: { round: 1, stage: 'swiss', matches: 2 },
+      timers: [],
+      minutes: 50,
+    });
+  });
+
+  it('starts, pauses and resets without saving the tournament', async () => {
+    await backend.saveTournament(runningDoc(4), null);
+    renderPage();
+    const card = within(await screen.findByRole('region', { name: 'Round timer' }));
+    const save = vi.spyOn(backend, 'saveTournament');
+
+    fireEvent.click(card.getByRole('button', { name: 'Start' }));
+    fireEvent.click(card.getByRole('button', { name: 'Pause' }));
+    fireEvent.click(card.getByRole('button', { name: '+1 min' }));
+    fireEvent.click(card.getByRole('button', { name: 'Reset' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' }));
+
+    expect(card.getByText('Not started')).toBeInTheDocument();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('hides the timer when the round closes and stores no open round', async () => {
+    await backend.saveTournament(runningDoc(4), null);
+    renderPage();
+    const card = within(await screen.findByRole('region', { name: 'Round timer' }));
+    fireEvent.click(card.getByRole('button', { name: 'Start' }));
+
+    act(() => {
+      const { dispatch } = useTournamentStore.getState();
+      for (const match of [1, 2]) {
+        dispatch({ type: 'ResultReported', payload: { matchId: matchId(match), result: WIN_A } });
+      }
+      dispatch({ type: 'RoundClosed', payload: { round: 1 } });
+    });
+
+    expect(screen.queryByRole('region', { name: 'Round timer' })).not.toBeInTheDocument();
+    expect(readTimerRecord(TOURNAMENT_ID)).toMatchObject({
+      openRound: null,
+      timers: [{ round: 1 }],
+    });
+    await idle();
   });
 });

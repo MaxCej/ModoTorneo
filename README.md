@@ -21,7 +21,7 @@ ModoTorneo is hosted as a static site on GitHub Pages. Tournament data can be st
 - Optional top-cut single elimination (Top 4 / 8 / 16 / 32), chosen when the swiss rounds end.
 - Match result entry (e.g. 2-0, 2-1, 1-1-1, draws, unplayed/intentional draws).
 - Standings with official tiebreakers: Match Points, Opponents' Match Win % (OMW%), Game Win % (GW%), Opponents' Game Win % (OGW%).
-- Round timer (nice to have).
+- Round timer for the open round, with a big timer window to project for players.
 
 ### 2. State, History, and Rollback
 
@@ -258,9 +258,28 @@ SB: 1 Abrade
   saved together: if the pairing fails, nothing changes. To redo a closed round, roll back past
   "Close round N" first.
 
+## Round timer
+
+- **Per round:** the open round (swiss or top cut) has a timer card on the tournament page. Pairing
+  never starts it: "Start" takes the minutes (1 to 180; 50 by default, then the last length used
+  for that tournament). "Pause" / "Resume", "+1 min" and "−1 min" (never below `00:00`, disabled in
+  overtime), and "Reset" (with confirmation) back to "Not started".
+- **At zero:** the clock shows "Time" and counts overtime upward in red (`+MM:SS`). Each open view
+  beeps once (unless muted) and the tournament page shows "Round N: time is up". Reloading during
+  overtime does not beep again.
+- **Big timer:** "Open big timer" opens `/#/tournaments/<id>/timer` in its own window, with no app
+  navigation: the tournament name, the round and a large clock. It has no controls and follows the
+  tournament page live. "Enable sound" appears while the browser blocks audio in that window.
+- **Mute:** one toggle for the tournament page and one for the big timer, each remembered.
+- **Browser only:** timers live in `localStorage` (`modotorneo.timer.<id>`), never in the event
+  log or the GitHub repository. The time is computed from the end time, so a hidden tab or a reload
+  stays exact. A timer belongs to its round number: redo pairings keeps it, and a rollback that
+  reopens a round shows that round's timer. Deleting a tournament on the Data page removes its
+  timer.
+
 ## Screens
 
-Every page renders inside one app shell with navigation (Tournaments, Players, Metagame, Data,
+Every page except the big timer renders inside one app shell with navigation (Tournaments, Players, Metagame, Data,
 Settings). Pages are
 loaded lazily, one chunk each.
 
@@ -311,6 +330,10 @@ loaded lazily, one chunk each.
     or the tournament was deleted elsewhere, the page reloads the stored version and says so. If
     the save cannot reach the storage (no network), the change stays on the page with "Not saved"
     and a "Retry save" button; no other change is accepted until it is saved.
+  - **Round timer:** under the round controls while a round is open (see
+    [Round timer](#round-timer)).
+- **Big timer (`/#/tournaments/<id>/timer`):** the open round's clock, full screen, for a
+  projector. Outside the app shell.
 - **Players (`/#/players`):** every registry player with tournaments played, record (W-L-D),
   match win %, game win % and last played date. "Search" filters by name; every column header
   sorts (click again to flip), and empty values ("—") stay last. Guests are never listed.
@@ -452,6 +475,7 @@ players.
 | UI state              | Zustand                                                           |
 | Forms and dates       | `@mantine/form`, `@mantine/dates` with dayjs                      |
 | Charts                | `@mantine/charts` (Recharts)                                      |
+| Notifications         | `@mantine/notifications`                                          |
 | GitHub API client     | Plain `fetch` (no Octokit)                                        |
 | Planned (later specs) | `vite-plugin-pwa`                                                 |
 
@@ -491,7 +515,8 @@ final with a bracket and placings. A players page and a profile per registry pla
 and game win rates, overall and per format, and the tournament history. Each registration can
 carry a deck: an archetype (with suggestions from the same format) and a pasted Moxfield or Arena
 list, shown in the registered list, the rounds, Standings, the top cut and the profile. A metagame
-page shows archetype share, win rates and a matchup matrix per format and date range. Data can
+page shows archetype share, win rates and a matchup matrix per format and date range. A round
+timer counts down the open round, with a big timer window for a projector. Data can
 be stored in the browser or in a private GitHub repository (one commit per save), chosen on the
 Settings page.
 

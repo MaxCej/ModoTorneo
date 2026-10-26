@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
 import { topCutRoundName, type Command, type Round, type TournamentState } from '../domain';
+import { emptyTimerRecord, type OpenRound } from '../storage/timerStorage';
 import { usePlayersStore } from '../store/playersStore';
 import { useTournamentStore, type SaveNotice } from '../store/tournamentStore';
 import { DetailsCard } from './tournament/DetailsCard';
@@ -23,7 +24,9 @@ import { RegistrationPanel } from './tournament/RegistrationPanel';
 import { RoundControls } from './tournament/RoundControls';
 import { RoundPanel } from './tournament/RoundPanel';
 import { StandingsPanel } from './tournament/StandingsPanel';
+import { RoundTimer } from './tournament/RoundTimer';
 import { TopCutPanel } from './tournament/TopCutPanel';
+import { useTimerRecord } from './timer/useTimerRecord';
 
 /** The panel whose command was rejected last, so its error shows under it. */
 type Panel = 'details' | 'registration' | 'rounds' | 'round' | 'history';
@@ -39,6 +42,14 @@ function defaultTab(state: TournamentState): string {
   const open = state.rounds.find((round) => !round.closed);
   const last = state.rounds.at(-1);
   return open ? roundTab(open.number) : last ? roundTab(last.number) : PLAYERS_TAB;
+}
+
+/** The open round as the round timer stores it, or null. */
+function openRoundOf(state: TournamentState): OpenRound | null {
+  const last = state.rounds.at(-1);
+  return last === undefined || last.closed
+    ? null
+    : { round: last.number, stage: last.stage, matches: last.matches.length };
 }
 
 export function TournamentPage() {
@@ -68,6 +79,8 @@ export function TournamentPage() {
     }
   };
 
+  const [timerRecord, setTimerRecord] = useTimerRecord(id ?? '');
+
   useEffect(() => {
     if (id !== undefined) {
       void useTournamentStore.getState().load(id);
@@ -91,6 +104,28 @@ export function TournamentPage() {
 
   // `id` guards against showing the previous tournament while the next one loads.
   const loaded = status === 'ready' && doc !== null && state !== null && state.id === id;
+  const openRound = loaded ? openRoundOf(state) : null;
+  const tournamentName = loaded ? state.name : null;
+  const openRoundKey = JSON.stringify(openRound);
+
+  // Keeps the name and open round in the timer record, for the big timer (SPEC 13). A tournament
+  // never timed gets a record only once a round is open.
+  useEffect(() => {
+    if (tournamentName === null || (timerRecord === null && openRound === null)) {
+      return;
+    }
+    const base = timerRecord ?? emptyTimerRecord(tournamentName);
+    if (
+      timerRecord !== null &&
+      base.tournamentName === tournamentName &&
+      JSON.stringify(base.openRound) === openRoundKey
+    ) {
+      return;
+    }
+    setTimerRecord({ ...base, tournamentName, openRound });
+    // `openRound` is a new object on every render; `openRoundKey` stands for it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournamentName, openRoundKey, timerRecord, setTimerRecord]);
 
   if (status === 'error' && loadError?.code === 'NOT_FOUND') {
     return (
@@ -145,6 +180,17 @@ export function TournamentPage() {
               onPaired={(round) => selectTab(roundTab(round))}
             />
             {commandError && errorPanel === 'rounds' && <CommandErrorAlert />}
+
+            {openRound !== null && (
+              <RoundTimer
+                key={`${state.id}-${openRound.round}`}
+                tournamentId={state.id}
+                tournamentName={state.name}
+                openRound={openRound}
+                record={timerRecord}
+                onChange={setTimerRecord}
+              />
+            )}
 
             <Tabs value={selectedTab ?? defaultTab(state)} onChange={selectTab} keepMounted={false}>
               <Tabs.List>

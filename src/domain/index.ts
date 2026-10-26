@@ -90,6 +90,15 @@ export {
 } from './state';
 export { editableDetails, resolvedSwissRounds, type DetailField } from './validate';
 export {
+  adjustTimer,
+  MINUTE_MS,
+  pauseTimer,
+  remainingMs,
+  resumeTimer,
+  startTimer,
+  type TimerState,
+} from './timer';
+export {
   SWISS_ROUNDS_TABLE,
   recommendedSwissRounds,
   recommendedSwissRoundsTop8,
