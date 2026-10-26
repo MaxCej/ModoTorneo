@@ -38,6 +38,12 @@ export {
   type RollbackPreview,
 } from './history';
 export { newId } from './ids';
+export {
+  tournamentMetagame,
+  type ArchetypeEntry,
+  type Matchup,
+  type TournamentMetagame,
+} from './metagame';
 export { parseImportFile, type ParsedImport } from './importFile';
 export { compareLogs, playersFromDocument, type LogComparison } from './merge';
 export {
