@@ -2,6 +2,7 @@
 // callers go through `execute`, `createTournament`, `reduce` and `parseTournamentDocument`.
 export * from './schemas/common';
 export { DatasetSchema, type Dataset } from './schemas/dataset';
+export * from './schemas/deck';
 export * from './schemas/document';
 export * from './schemas/events';
 export * from './schemas/matchResult';

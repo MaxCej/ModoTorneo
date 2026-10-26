@@ -7,6 +7,7 @@ import {
   TopCutSizeSchema,
   UuidSchema,
 } from './common';
+import { DeckSchema } from './deck';
 import { MatchResultSchema } from './matchResult';
 
 const RoundNumberSchema = z.number().int().min(1);
@@ -104,6 +105,10 @@ export type TopCutStartedPayload = z.infer<typeof TopCutStartedPayloadSchema>;
 export const TournamentFinishedPayloadSchema = z.record(z.string(), z.never());
 export type TournamentFinishedPayload = z.infer<typeof TournamentFinishedPayloadSchema>;
 
+/** The player's deck in this tournament; replaces any earlier one. Nothing in it clears the deck. */
+export const DeckSetPayloadSchema = DeckSchema.extend({ playerId: UuidSchema });
+export type DeckSetPayload = z.infer<typeof DeckSetPayloadSchema>;
+
 export const RolledBackPayloadSchema = z.object({ toSeq: z.number().int().min(1) });
 export type RolledBackPayload = z.infer<typeof RolledBackPayloadSchema>;
 
@@ -133,6 +138,7 @@ export const TournamentFinishedSchema = eventSchema(
   'TournamentFinished',
   TournamentFinishedPayloadSchema,
 );
+export const DeckSetSchema = eventSchema('DeckSet', DeckSetPayloadSchema);
 export const RolledBackSchema = eventSchema('RolledBack', RolledBackPayloadSchema);
 
 export type TournamentCreated = z.infer<typeof TournamentCreatedSchema>;
@@ -146,6 +152,7 @@ export type ResultReported = z.infer<typeof ResultReportedSchema>;
 export type RoundClosed = z.infer<typeof RoundClosedSchema>;
 export type TopCutStarted = z.infer<typeof TopCutStartedSchema>;
 export type TournamentFinished = z.infer<typeof TournamentFinishedSchema>;
+export type DeckSet = z.infer<typeof DeckSetSchema>;
 export type RolledBack = z.infer<typeof RolledBackSchema>;
 
 export const TournamentEventSchema = z.discriminatedUnion('type', [
@@ -160,6 +167,7 @@ export const TournamentEventSchema = z.discriminatedUnion('type', [
   RoundClosedSchema,
   TopCutStartedSchema,
   TournamentFinishedSchema,
+  DeckSetSchema,
   RolledBackSchema,
 ]);
 export type TournamentEvent = z.infer<typeof TournamentEventSchema>;

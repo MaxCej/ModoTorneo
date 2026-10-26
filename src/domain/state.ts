@@ -1,4 +1,5 @@
 import type { BestOf, Format, IsoDate, TopCutSize, Uuid } from './schemas/common';
+import type { Deck } from './schemas/deck';
 import type { Pairing, TournamentCreated } from './schemas/events';
 import { matchOutcome, type MatchResult } from './schemas/matchResult';
 
@@ -11,6 +12,7 @@ export type PlayerEntry = {
   guest: boolean; // false when the event omits it
   dropped: boolean;
   registeredAtRound: number; // 0 = before round 1
+  deck: Deck | null; // latest DeckSet; null without one, or after a DeckSet with nothing in it
 };
 
 export type Match = Pairing & { result: MatchResult | null };

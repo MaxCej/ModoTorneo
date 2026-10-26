@@ -1,4 +1,4 @@
-import { executeAll, type Command, type Deps } from './commands';
+import { commandOf, executeAll, type Command, type Deps } from './commands';
 import { domainError, type DomainError } from './errors';
 import { newId } from './ids';
 import { pairSwissRound, type PairingDeps } from './pairing';
@@ -46,9 +46,7 @@ export function redoPairingCommands(
   const toSeq = effective[pairedAt - 1].seq;
   const during = effective.slice(pairedAt + 1);
 
-  const carried = during
-    .filter((event) => CARRIED_TYPES.has(event.type))
-    .map((event) => ({ type: event.type, payload: event.payload }) as Command);
+  const carried = during.filter((event) => CARRIED_TYPES.has(event.type)).map(commandOf);
   const prefix: [Command, ...Command[]] = [{ type: 'RolledBack', payload: { toSeq } }, ...carried];
 
   // The new pairing runs on the state after the rollback and the carried events.

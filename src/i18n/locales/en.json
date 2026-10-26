@@ -362,6 +362,8 @@
         "TopCutStarted_other": "{{count}} top cuts started",
         "TournamentFinished_one": "{{count}} tournament finished",
         "TournamentFinished_other": "{{count}} tournaments finished",
+        "DeckSet_one": "{{count}} deck change",
+        "DeckSet_other": "{{count}} deck changes",
         "RolledBack_one": "{{count}} rollback",
         "RolledBack_other": "{{count}} rollbacks"
       },
@@ -377,6 +379,9 @@
         "RoundClosed": "Round {{round}} closed",
         "TopCutStarted": "Top {{size}} started, best of {{bestOf}}",
         "TournamentFinished": "Tournament finished",
+        "DeckSet": "{{name}}: deck {{archetype}}",
+        "DeckSetList": "{{name}}: decklist",
+        "DeckSetCleared": "{{name}}: deck cleared",
         "RolledBack": "Rolled back to #{{seq}}"
       }
     }

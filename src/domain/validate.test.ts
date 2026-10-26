@@ -600,7 +600,14 @@ describe('validate: TopCutStarted', () => {
     const ids = Array.from({ length: size }, (_, i) => uuid(200 + i));
     const players = ids.map((id) => [
       id,
-      { playerId: id, playerName: id, guest: false, dropped: false, registeredAtRound: 0 },
+      {
+        playerId: id,
+        playerName: id,
+        guest: false,
+        dropped: false,
+        registeredAtRound: 0,
+        deck: null,
+      },
     ]);
     const crowded = { ...reduceLog(swissDone()), players: Object.fromEntries(players) };
     expect(validateNext(crowded, 'TopCutStarted', { size })).toBeNull();
@@ -922,6 +929,61 @@ describe('validate: RolledBack', () => {
     expect(validateNext(withRollback(), 'RolledBack', { toSeq })).toMatchObject({
       code: 'INVALID_ROLLBACK_TARGET',
       seq: 9,
+    });
+  });
+});
+
+describe('validate: DeckSet', () => {
+  const deck = (playerId: string, main = [{ quantity: 4, name: 'Lightning Bolt' }]) => ({
+    playerId,
+    archetype: 'Burn',
+    main,
+    sideboard: [{ quantity: 2, name: 'Lightning Bolt' }],
+  });
+
+  const states = {
+    setup: () => reduceLog(registeredLog(4)),
+    running: () => reduceLog(round1Open()),
+    topCut: () => reduceLog(semisOpen()),
+    finished: () => reduceLog(swissDone().add('TournamentFinished', {})),
+  };
+
+  it.each(Object.keys(states) as (keyof typeof states)[])('accepts a deck while %s', (status) => {
+    const state = states[status]();
+    expect(state.status).toBe(status);
+    expect(validateNext(state, 'DeckSet', deck(P1))).toBeNull();
+  });
+
+  it('accepts a deck for a guest and for a dropped player', () => {
+    const state = reduceLog(
+      registeredLog(4)
+        .add('PlayerRegistered', { playerId: P5, playerName: 'Guest', guest: true })
+        .add('PlayerDropped', { playerId: P2 }),
+    );
+    expect(validateNext(state, 'DeckSet', deck(P5))).toBeNull();
+    expect(validateNext(state, 'DeckSet', deck(P2))).toBeNull();
+  });
+
+  it('accepts an empty deck (clear)', () => {
+    const empty = { playerId: P1, main: [], sideboard: [] };
+    expect(validateNext(reduceLog(registeredLog(4)), 'DeckSet', empty)).toBeNull();
+  });
+
+  it('rejects an unknown player with UNKNOWN_PLAYER', () => {
+    expect(validateNext(reduceLog(registeredLog(4)), 'DeckSet', deck(P5))).toMatchObject({
+      code: 'UNKNOWN_PLAYER',
+      seq: 6,
+    });
+  });
+
+  it('rejects a name listed twice in one section (case-insensitive) with INVALID_DECK', () => {
+    const main = [
+      { quantity: 4, name: 'Lightning Bolt' },
+      { quantity: 1, name: 'lightning bolt' },
+    ];
+    expect(validateNext(reduceLog(registeredLog(4)), 'DeckSet', deck(P1, main))).toMatchObject({
+      code: 'INVALID_DECK',
+      seq: 6,
     });
   });
 });

@@ -7,6 +7,7 @@ import type { IsoDateTime, Uuid } from './schemas/common';
 import type { TournamentDocument } from './schemas/document';
 import {
   TournamentEventSchema,
+  type DeckSetPayload,
   type EventPayload,
   type TournamentCreatedPayload,
   type TournamentEvent,
@@ -15,10 +16,23 @@ import {
 import type { TournamentState } from './state';
 import { validate } from './validate';
 
-/** One command per event type: the event without its envelope. */
-export type Command = {
-  [T in TournamentEventType]: { type: T; payload: EventPayload<T> };
-}[TournamentEventType];
+/** Event types whose command has the same name. */
+type SameNameType = Exclude<TournamentEventType, 'DeckSet'>;
+
+/**
+ * One command per event type: the event without its envelope.
+ * `SetDeck` is appended as `DeckSet`; every other command keeps its event's name.
+ */
+export type Command =
+  | { [T in SameNameType]: { type: T; payload: EventPayload<T> } }[SameNameType]
+  | { type: 'SetDeck'; payload: DeckSetPayload };
+
+/** The command that appends an event with this payload again (used to carry events). */
+export function commandOf(event: TournamentEvent): Command {
+  return event.type === 'DeckSet'
+    ? { type: 'SetDeck', payload: event.payload }
+    : ({ type: event.type, payload: event.payload } as Command);
+}
 
 export type Deps = { now: () => IsoDateTime; newId: () => Uuid };
 
@@ -102,7 +116,8 @@ export function createTournament(
 }
 
 function parseEvent(cmd: Command, seq: number, deps: Deps): Result<TournamentEvent, DomainError> {
-  const candidate = { id: deps.newId(), seq, at: deps.now(), type: cmd.type, payload: cmd.payload };
+  const type = cmd.type === 'SetDeck' ? 'DeckSet' : cmd.type;
+  const candidate = { id: deps.newId(), seq, at: deps.now(), type, payload: cmd.payload };
   const parsed = TournamentEventSchema.safeParse(candidate);
   if (!parsed.success) {
     return err(domainError('INVALID_SCHEMA', z.prettifyError(parsed.error), seq));

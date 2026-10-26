@@ -21,7 +21,8 @@ export type DomainErrorCode =
   | 'INVALID_DETAILS'
   | 'INVALID_SWAP'
   | 'NO_OPEN_ROUND'
-  | 'RESULT_EXCEEDS_BEST_OF';
+  | 'RESULT_EXCEEDS_BEST_OF'
+  | 'INVALID_DECK';
 
 export type DomainError = { code: DomainErrorCode; message: string; seq?: number };
 
