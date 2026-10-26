@@ -128,6 +128,7 @@ describe('MetagamePage', () => {
     await renderPage('/metagame?format=modern');
     expect(names()).toEqual(['Burn', 'Tron', 'Unknown']);
     expect(screen.getByText('2 tournaments · 8 players')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Matchups', level: 2 })).toBeInTheDocument();
   });
 
   it('ignores invalid query values', async () => {

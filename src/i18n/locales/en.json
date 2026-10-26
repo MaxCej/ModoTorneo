@@ -111,6 +111,12 @@
       "matchWinRate": "Match win %",
       "gameWinRate": "Game win %",
       "topCut": "Top cut"
+    },
+    "matrix": {
+      "title": "Matchups",
+      "caption": "Row archetype's match win % against the column archetype.",
+      "mirror_one": "{{count}} match",
+      "mirror_other": "{{count}} matches"
     }
   },
   "newTournament": {
