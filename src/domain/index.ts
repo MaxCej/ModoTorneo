@@ -18,6 +18,15 @@ export {
   type ExecuteAllResult,
   type ExecuteResult,
 } from './commands';
+export {
+  archetypeSuggestions,
+  canonicalArchetype,
+  cardCount,
+  formatDecklist,
+  parseDecklist,
+  tournamentArchetypes,
+  type ParsedDecklist,
+} from './decklist';
 export { parseTournamentDocument } from './document';
 export { CorruptLogError, type DomainError, type DomainErrorCode } from './errors';
 export {
