@@ -77,6 +77,25 @@ describe('AppLayout', () => {
     expect(nav().getByRole('link', { name: 'Tournaments' })).not.toHaveAttribute('data-active');
   });
 
+  it('navigates to /#/metagame with the Metagame link and keeps it active with a query', async () => {
+    renderAt('#/');
+    await screen.findByRole('heading', { level: 1 });
+    expect(nav().getByRole('link', { name: 'Metagame' })).toHaveAttribute('href', '#/metagame');
+
+    fireEvent.click(nav().getByRole('link', { name: 'Metagame' }));
+    expect(await screen.findByRole('heading', { name: 'Metagame', level: 1 })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/metagame');
+    expect(nav().getByRole('link', { name: 'Metagame' })).toHaveAttribute('data-active', 'true');
+    expect(nav().getByRole('link', { name: 'Tournaments' })).not.toHaveAttribute('data-active');
+  });
+
+  it('marks Metagame active on /#/metagame with a query', async () => {
+    renderAt('#/metagame?format=modern');
+    expect(await screen.findByRole('heading', { name: 'Metagame', level: 1 })).toBeInTheDocument();
+    expect(nav().getByRole('link', { name: 'Metagame' })).toHaveAttribute('data-active', 'true');
+    expect(nav().getByRole('link', { name: 'Tournaments' })).not.toHaveAttribute('data-active');
+  });
+
   it('renders the not-found page inside the shell', async () => {
     renderAt('#/does-not-exist');
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();

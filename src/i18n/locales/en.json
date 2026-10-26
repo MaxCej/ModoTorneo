@@ -6,6 +6,7 @@
   "nav": {
     "tournaments": "Tournaments",
     "players": "Players",
+    "metagame": "Metagame",
     "data": "Data",
     "settings": "Settings",
     "toggle": "Toggle navigation",
@@ -79,6 +80,37 @@
       "cancel": "Cancel",
       "save": "Save",
       "saveAnyway": "Rename anyway"
+    }
+  },
+  "metagame": {
+    "title": "Metagame",
+    "unavailable": "Local storage is unavailable in this browser.",
+    "loadFailed": "Could not load tournaments ({{code}}): {{message}}",
+    "filters": {
+      "format": "Format",
+      "from": "From",
+      "to": "To"
+    },
+    "summary": "{{tournaments}} · {{players}}",
+    "tournaments_one": "{{count}} tournament",
+    "tournaments_other": "{{count}} tournaments",
+    "players_one": "{{count}} player",
+    "players_other": "{{count}} players",
+    "skipped_one": "{{count}} tournament without decks is not counted.",
+    "skipped_other": "{{count}} tournaments without decks are not counted.",
+    "noDecks": "No decks recorded yet. Set decks from a tournament's registration list.",
+    "noMatch": "No decks recorded for {{format}} in this range.",
+    "unknown": "Unknown",
+    "other": "Other",
+    "tableLabel": "Archetypes",
+    "columns": {
+      "archetype": "Archetype",
+      "players": "Players",
+      "share": "Share",
+      "record": "Record",
+      "matchWinRate": "Match win %",
+      "gameWinRate": "Game win %",
+      "topCut": "Top cut"
     }
   },
   "newTournament": {
