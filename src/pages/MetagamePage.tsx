@@ -13,6 +13,7 @@ import { getStorage, readSettings, type StorageError, type TournamentSummary } f
 import { StorageErrorAlert } from './StorageErrorAlert';
 import { ArchetypeTable } from './metagame/ArchetypeTable';
 import { MatchupMatrix } from './metagame/MatchupMatrix';
+import { MetagameCharts } from './metagame/MetagameCharts';
 import { MetagameFilters, type FilterChange } from './metagame/MetagameFilters';
 
 type Data =
@@ -112,6 +113,7 @@ export function MetagamePage() {
               <>
                 <ArchetypeTable archetypes={report.archetypes} />
                 <MatchupMatrix groups={report.groups} matrix={report.matrix} />
+                <MetagameCharts groups={report.groups} />
               </>
             )}
           </>

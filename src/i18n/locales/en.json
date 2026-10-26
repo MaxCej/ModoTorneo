@@ -117,6 +117,10 @@
       "caption": "Row archetype's match win % against the column archetype.",
       "mirror_one": "{{count}} match",
       "mirror_other": "{{count}} matches"
+    },
+    "charts": {
+      "share": "Share",
+      "matchWinRate": "Match win %"
     }
   },
   "newTournament": {

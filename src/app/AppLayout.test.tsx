@@ -83,7 +83,10 @@ describe('AppLayout', () => {
     expect(nav().getByRole('link', { name: 'Metagame' })).toHaveAttribute('href', '#/metagame');
 
     fireEvent.click(nav().getByRole('link', { name: 'Metagame' }));
-    expect(await screen.findByRole('heading', { name: 'Metagame', level: 1 })).toBeInTheDocument();
+    // The metagame chunk pulls in recharts: its first import is slow under a full test run.
+    expect(
+      await screen.findByRole('heading', { name: 'Metagame', level: 1 }, { timeout: 5000 }),
+    ).toBeInTheDocument();
     expect(window.location.hash).toBe('#/metagame');
     expect(nav().getByRole('link', { name: 'Metagame' })).toHaveAttribute('data-active', 'true');
     expect(nav().getByRole('link', { name: 'Tournaments' })).not.toHaveAttribute('data-active');
@@ -91,7 +94,10 @@ describe('AppLayout', () => {
 
   it('marks Metagame active on /#/metagame with a query', async () => {
     renderAt('#/metagame?format=modern');
-    expect(await screen.findByRole('heading', { name: 'Metagame', level: 1 })).toBeInTheDocument();
+    // The metagame chunk pulls in recharts: its first import is slow under a full test run.
+    expect(
+      await screen.findByRole('heading', { name: 'Metagame', level: 1 }, { timeout: 5000 }),
+    ).toBeInTheDocument();
     expect(nav().getByRole('link', { name: 'Metagame' })).toHaveAttribute('data-active', 'true');
     expect(nav().getByRole('link', { name: 'Tournaments' })).not.toHaveAttribute('data-active');
   });
