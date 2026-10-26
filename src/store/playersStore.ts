@@ -8,6 +8,8 @@ export type PlayersStoreState = {
   error: StorageError | null;
   load(): Promise<void>;
   addPlayer(name: string): Promise<Result<Player, StorageError>>; // new id, createdAt = now
+  /** Saves the player with the new name (same id and createdAt). NOT_FOUND when the id is not loaded. */
+  renamePlayer(id: Uuid, name: string): Promise<Result<Player, StorageError>>;
 };
 
 export type PlayersStoreDeps = { now: () => IsoDateTime; newId: () => Uuid };
@@ -22,7 +24,7 @@ function byName(a: Player, b: Player): number {
 
 /** The global player registry. Tests inject the backend; the app uses `usePlayersStore`. */
 export function createPlayersStore(backend: StorageBackend, deps: PlayersStoreDeps = defaultDeps) {
-  return create<PlayersStoreState>()((set) => ({
+  return create<PlayersStoreState>()((set, get) => ({
     status: 'idle',
     players: [],
     error: null,
@@ -46,6 +48,22 @@ export function createPlayersStore(backend: StorageBackend, deps: PlayersStoreDe
       // savePlayer stores the parsed player; mirror its trimmed name.
       const stored = { ...player, name: name.trim() };
       set((state) => ({ players: [...state.players, stored].sort(byName) }));
+      return ok(stored);
+    },
+
+    async renamePlayer(id, name) {
+      const current = get().players.find((player) => player.id === id);
+      if (current === undefined) {
+        return err({ code: 'NOT_FOUND', message: `No player with id ${id}` });
+      }
+      const saved = await backend.savePlayer({ ...current, name });
+      if (!saved.ok) {
+        return err(saved.error);
+      }
+      const stored = { ...current, name: name.trim() };
+      set((state) => ({
+        players: state.players.map((player) => (player.id === id ? stored : player)).sort(byName),
+      }));
       return ok(stored);
     },
   }));

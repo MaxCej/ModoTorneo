@@ -62,4 +62,47 @@ describe('playersStore', () => {
 
     expect(store.getState()).toMatchObject({ status: 'error', error });
   });
+
+  it('renames a player with the same id and createdAt, trimmed, in name order', async () => {
+    const { backend, store } = setup();
+    await backend.savePlayer({ id: uuid(1), name: 'Alice', createdAt: NOW });
+    await backend.savePlayer({ id: uuid(2), name: 'Bruno', createdAt: '2026-01-01T00:00:00.000Z' });
+    await store.getState().load();
+
+    const result = await store.getState().renamePlayer(uuid(2), '  Aaron ');
+
+    const renamed = { id: uuid(2), name: 'Aaron', createdAt: '2026-01-01T00:00:00.000Z' };
+    expect(result).toEqual({ ok: true, value: renamed });
+    expect(store.getState().players.map((p) => p.name)).toEqual(['Aaron', 'Alice']);
+    expect(await backend.listPlayers()).toEqual({ ok: true, value: store.getState().players });
+  });
+
+  it('returns the storage error on a failed rename and changes nothing', async () => {
+    const { backend, store } = setup();
+    await backend.savePlayer({ id: uuid(1), name: 'Alice', createdAt: NOW });
+    await store.getState().load();
+    const before = store.getState().players;
+    const error = { code: 'UNAVAILABLE' as const, message: 'offline' };
+    backend.savePlayer = async () => ({ ok: false, error });
+
+    const result = await store.getState().renamePlayer(uuid(1), 'Zoe');
+
+    expect(result).toEqual({ ok: false, error });
+    expect(store.getState().players).toBe(before);
+  });
+
+  it('returns NOT_FOUND for an unknown id without saving', async () => {
+    const { backend, store } = setup();
+    await store.getState().load();
+    let saves = 0;
+    backend.savePlayer = async () => {
+      saves += 1;
+      return { ok: true, value: undefined };
+    };
+
+    const result = await store.getState().renamePlayer(uuid(9), 'Zoe');
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } });
+    expect(saves).toBe(0);
+  });
 });

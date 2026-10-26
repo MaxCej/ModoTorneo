@@ -158,6 +158,25 @@ The top cut is optional single elimination, started after any closed swiss round
 - **Placings:** winner of the final 1st, its loser 2nd, semifinal losers 3rd–4th, quarterfinal
   losers 5th–8th, and so on. Players still in when the tournament finishes share 1st–Nth.
 
+## Player statistics
+
+Each tournament summary stores one result per registry player (`playerResults` in
+`src/domain/playerStats.ts`), computed when the summary is computed. The players page and the
+profile add these up and never replay an event log.
+
+- **Who:** registry players only. Guests have no statistics; a match against a guest counts like
+  any other.
+- **Which tournaments:** every stored tournament, any status, where the player is registered
+  (dropped or not, even with no match). Only matches with a result count, so a running event
+  adds its reported matches.
+- **Which matches:** swiss and top cut. Byes and unplayed matches add no match, game or win
+  rate; byes are counted on their own. An intentional draw is a draw with no games.
+- **Match win %:** wins / (wins + losses + draws). **Game win %:** games won / games played,
+  drawn games included. No 33% floor (that is for tiebreakers only). "—" when there is nothing
+  to count.
+- **Swiss rank:** the rank in the standings after the last closed swiss round. **Top cut
+  place:** as in the placings table.
+
 ## Restore, rollback and redo pairings
 
 - **Restore:** every change is saved as it happens. Opening a tournament from the list replays
@@ -175,7 +194,7 @@ The top cut is optional single elimination, started after any closed swiss round
 
 ## Screens
 
-Every page renders inside one app shell with navigation (Tournaments, Data, Settings). Pages are
+Every page renders inside one app shell with navigation (Tournaments, Players, Data, Settings). Pages are
 loaded lazily, one chunk each.
 
 - **Tournaments (`/#/`):** every stored tournament with date, format, status and player count,
@@ -220,6 +239,15 @@ loaded lazily, one chunk each.
     or the tournament was deleted elsewhere, the page reloads the stored version and says so. If
     the save cannot reach the storage (no network), the change stays on the page with "Not saved"
     and a "Retry save" button; no other change is accepted until it is saved.
+- **Players (`/#/players`):** every registry player with tournaments played, record (W-L-D),
+  match win %, game win % and last played date. "Search" filters by name; every column header
+  sorts (click again to flip), and empty values ("—") stay last. Guests are never listed.
+- **Player profile (`/#/players/<id>`):** totals (tournaments, record, win rates, byes, top cuts
+  and best top cut finish), a "By format" table, and the tournament history with date, format,
+  status, swiss record (plus byes), swiss rank and top cut place, with a "Dropped" badge.
+  "Rename" changes the registry name (another player's name needs "Rename anyway"); past
+  tournaments keep the name they were played with. Player names in Standings, the registered
+  list, the read-only registry list, the bracket and the placings link here; guests do not.
 - **Data (`/#/data`):** the active storage, export, import and delete (see below).
 - **Settings (`/#/settings`):** choose where data is stored: this browser or a GitHub
   repository (see [GitHub storage](#github-storage)).
@@ -232,9 +260,10 @@ The storage layer lives in `src/storage/`. Callers use the `StorageBackend` inte
 and read once per page load (`localStorage` key `modotorneo.storage`).
 
 - **Tables:** `tournaments` (one row per tournament: the whole `TournamentDocument` plus summary
-  fields recomputed on every save, including `playerCount`) and `players` (the global player
-  registry). Schema changes are new Dexie versions with an upgrade function (now version 3, which
-  adds the GitHub summary cache `githubSummaries`).
+  fields recomputed on every save, including `playerCount` and the per-player results `players`)
+  and `players` (the global player registry). Schema changes are new Dexie versions with an
+  upgrade function (now version 4: version 3 adds the GitHub summary cache `githubSummaries`,
+  version 4 adds the per-player results to every row and clears that cache).
 - **Validation:** every document is checked with `parseTournamentDocument` on save and on load. A
   corrupted row is reported as `INVALID_DOCUMENT`, never loaded silently.
   Players are checked with `PlayerSchema` the same way; an invalid player is `INVALID_PLAYER`.
@@ -378,7 +407,8 @@ A full swiss event runs in the browser: registration (registry players and guest
 drops), swiss pairings, result entry, swaps, standings with MTR tiebreakers and finishing, all
 autosaved to IndexedDB. The History tab rolls back to any earlier event, and "Redo pairings"
 re-pairs the open swiss round. An optional Top 4 / 8 / 16 / 32 (best of three or five) runs to a
-final with a bracket and placings. Data can be stored in the browser or in a private GitHub
+final with a bracket and placings. A players page and a profile per registry player show match
+and game win rates, overall and per format, and the tournament history. Data can be stored in the browser or in a private GitHub
 repository (one commit per save), chosen on the Settings page.
 
 ## License

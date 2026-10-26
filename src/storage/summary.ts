@@ -1,4 +1,10 @@
-import type { IsoDateTime, Player, TournamentDocument, TournamentState } from '../domain';
+import {
+  playerResults,
+  type IsoDateTime,
+  type Player,
+  type TournamentDocument,
+  type TournamentState,
+} from '../domain';
 import type { Revision, TournamentSummary } from './types';
 
 /** Summary row fields, derived from the replayed state. Never edited directly. */
@@ -18,6 +24,7 @@ export function toSummary(
     playerCount: Object.keys(state.players).length,
     updatedAt,
     revision,
+    players: playerResults(state),
   };
 }
 

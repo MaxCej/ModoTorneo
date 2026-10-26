@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createTournament,
   execute,
+  playerResults,
+  reduce,
   type TournamentCreatedPayload,
   type TournamentDocument,
 } from '../domain';
@@ -161,6 +163,9 @@ describe('DexieBackend tournaments', () => {
           playerCount: 8, // 8 registered, the dropped player included
           updatedAt: NOW,
           revision: '1',
+          players: playerResults(
+            reduce(fixture.events as TournamentDocument['events'], TOURNAMENT_ID),
+          ),
         },
       ],
     });
@@ -272,8 +277,70 @@ describe('DexieBackend tournaments', () => {
   });
 });
 
+const fixturePlayers = () => playerResults(reduce(fixtureDoc().events, TOURNAMENT_ID));
+
+describe('DexieBackend version 4 upgrade', () => {
+  const v3Row = (doc: TournamentDocument) => ({
+    id: doc.id,
+    doc,
+    revision: 3,
+    name: 'Friday Night Magic',
+    date: '2026-10-11',
+    format: 'modern',
+    status: 'finished',
+    eventCount: doc.events.length,
+    playerCount: 8,
+    updatedAt: NOW,
+  });
+
+  /** A version 3 database (SPEC 09 schema) with rows that have no `players`. */
+  async function seedVersion3(dbName: string, row: Record<string, unknown>) {
+    const v3 = new Dexie(dbName);
+    v3.version(3).stores({
+      tournaments: 'id, date, format, status, updatedAt',
+      players: 'id, name',
+      githubSummaries: '[repo+id]',
+    });
+    await v3.table('tournaments').add(row);
+    await v3.table('githubSummaries').add({
+      repo: 'owner/data',
+      id: TOURNAMENT_ID,
+      sha: 'abc',
+      summary: { id: TOURNAMENT_ID },
+    });
+    v3.close();
+  }
+
+  it('opens a version 3 database at version 4 with players computed and an empty cache', async () => {
+    const { dbName, backend } = freshBackend();
+    const row = v3Row(fixtureDoc());
+    await seedVersion3(dbName, row);
+
+    const raw = new ModoTorneoDb(dbName);
+    await raw.open();
+    expect(raw.verno).toBe(4);
+    expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual({ ...row, players: fixturePlayers() });
+    expect(await raw.githubSummaries.count()).toBe(0);
+    raw.close();
+
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value[0].players).toEqual(fixturePlayers());
+  });
+
+  it('gives an invalid stored doc players [], and it still fails on load', async () => {
+    const { dbName, backend } = freshBackend();
+    const broken = { ...fixtureDoc(), schemaVersion: 7 } as unknown as TournamentDocument;
+    await seedVersion3(dbName, v3Row(broken));
+
+    const list = await backend.listTournaments();
+    expect(list.ok && list.value[0].players).toEqual([]);
+    const loaded = await backend.loadTournament(TOURNAMENT_ID);
+    expect(loaded.ok || loaded.error.code).toBe('INVALID_DOCUMENT');
+  });
+});
+
 describe('DexieBackend version 3 upgrade', () => {
-  it('opens a version 2 database at version 3 with rows unchanged and an empty cache', async () => {
+  it('opens a version 2 database with an empty cache', async () => {
     const { dbName } = freshBackend();
     const doc = fixtureDoc();
     const row = {
@@ -298,8 +365,9 @@ describe('DexieBackend version 3 upgrade', () => {
 
     const raw = new ModoTorneoDb(dbName);
     await raw.open();
-    expect(raw.verno).toBe(3);
-    expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual(row);
+    // Version 4 (SPEC 10) runs after version 3 and adds `players`.
+    expect(raw.verno).toBe(4);
+    expect(await raw.tournaments.get(TOURNAMENT_ID)).toEqual({ ...row, players: fixturePlayers() });
     expect(await raw.githubSummaries.count()).toBe(0);
     raw.close();
   });
@@ -341,8 +409,8 @@ describe('DexieBackend version 2 upgrade', () => {
 
     const raw = new ModoTorneoDb(dbName);
     await raw.open();
-    // Version 3 (SPEC 09) runs after the version 2 upgrade.
-    expect(raw.verno).toBe(3);
+    // Versions 3 (SPEC 09) and 4 (SPEC 10) run after the version 2 upgrade.
+    expect(raw.verno).toBe(4);
     expect((await raw.tournaments.get(TOURNAMENT_ID))?.playerCount).toBe(8);
     raw.close();
   });

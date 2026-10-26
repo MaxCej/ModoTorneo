@@ -36,7 +36,11 @@ export function StandingsPanel({ state }: { state: TournamentState }) {
           }
         }}
       />
-      <StandingsTable rows={rows} round={round} />
+      <StandingsTable
+        rows={rows}
+        round={round}
+        isGuest={(playerId) => state.players[playerId]?.guest ?? false}
+      />
     </Stack>
   );
 }

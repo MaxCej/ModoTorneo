@@ -8,7 +8,13 @@ const NAV_ITEMS = [
   {
     to: '/',
     label: 'nav.tournaments',
-    isActive: (path: string) => !path.startsWith('/data') && !path.startsWith('/settings'),
+    isActive: (path: string) =>
+      !path.startsWith('/players') && !path.startsWith('/data') && !path.startsWith('/settings'),
+  },
+  {
+    to: '/players',
+    label: 'nav.players',
+    isActive: (path: string) => path.startsWith('/players'),
   },
   { to: '/data', label: 'nav.data', isActive: (path: string) => path.startsWith('/data') },
   {

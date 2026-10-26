@@ -1,5 +1,6 @@
 import { MantineProvider } from '@mantine/core';
 import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import {
   pairTopCutRound,
@@ -67,7 +68,9 @@ function play(log: LogBuilder, results: MatchResult[] = []) {
 function renderPanel(state: TournamentState) {
   render(
     <MantineProvider env="test">
-      <TopCutPanel state={state} />
+      <MemoryRouter>
+        <TopCutPanel state={state} />
+      </MemoryRouter>
     </MantineProvider>,
   );
 }
@@ -107,6 +110,10 @@ describe('TopCutPanel', () => {
     ).toBeInTheDocument();
   });
 
+  /** A bracket line ("(seed) name"): the name is a link inside the line's element. */
+  const line = (text: string) => (_: string, element: Element | null) =>
+    element?.textContent === text && ['STRONG', 'P'].includes(element.tagName);
+
   it('shows one column per round with seeds, names, scores and bold winners', () => {
     const log = started(4);
     play(log, [WIN_A, WIN_B]); // semifinals: 1 v 7 (player 1 wins), 3 v 5 (player 5 wins)
@@ -115,16 +122,16 @@ describe('TopCutPanel', () => {
 
     const semis = within(screen.getByRole('group', { name: 'Semifinals' }));
     const table1 = within(semis.getByRole('group', { name: 'Table 1' }));
-    expect(table1.getByText('(1) Player 1').tagName).toBe('STRONG');
-    expect(table1.getByText('(4) Player 7').tagName).not.toBe('STRONG');
+    expect(table1.getByText(line('(1) Player 1')).tagName).toBe('STRONG');
+    expect(table1.getByText(line('(4) Player 7')).tagName).not.toBe('STRONG');
     expect(table1.getByText('2-1')).toBeInTheDocument();
     const table2 = within(semis.getByRole('group', { name: 'Table 2' }));
-    expect(table2.getByText('(3) Player 5').tagName).toBe('STRONG');
+    expect(table2.getByText(line('(3) Player 5')).tagName).toBe('STRONG');
     expect(table2.getByText('1-2')).toBeInTheDocument();
 
     const final = within(screen.getByRole('group', { name: 'Final' }));
-    expect(final.getByText('(1) Player 1')).toBeInTheDocument();
-    expect(final.getByText('(3) Player 5')).toBeInTheDocument();
+    expect(final.getByText(line('(1) Player 1'))).toBeInTheDocument();
+    expect(final.getByText(line('(3) Player 5'))).toBeInTheDocument();
     expect(final.getByText('Not reported')).toBeInTheDocument();
   });
 
@@ -163,5 +170,28 @@ describe('TopCutPanel', () => {
       '3rd–4th',
       '3rd–4th',
     ]);
+  });
+
+  it('links registry players in the bracket and the placings, and not guests', () => {
+    const log = started(4);
+    play(log, [WIN_A, WIN_B]);
+    const state = stateOf(log);
+    // Player 7 (seed 4) as a guest.
+    state.players[ids[6]] = { ...state.players[ids[6]], guest: true };
+    renderPanel(state);
+
+    const semis = within(screen.getByRole('group', { name: 'Semifinals' }));
+    expect(semis.getByRole('link', { name: 'Player 1' })).toHaveAttribute(
+      'href',
+      `/players/${ids[0]}`,
+    );
+    expect(semis.queryByRole('link', { name: 'Player 7' })).not.toBeInTheDocument();
+    const placings = within(screen.getByRole('table', { name: 'Top cut placings' }));
+    expect(placings.getByRole('link', { name: 'Player 5' })).toHaveAttribute(
+      'href',
+      `/players/${ids[4]}`,
+    );
+    expect(placings.getByText('Player 7')).toBeInTheDocument();
+    expect(placings.queryByRole('link', { name: 'Player 7' })).not.toBeInTheDocument();
   });
 });

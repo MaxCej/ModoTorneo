@@ -1,6 +1,7 @@
 import { MantineProvider } from '@mantine/core';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import {
   err,
@@ -91,7 +92,9 @@ function renderPanel(initial: TournamentDocument, addPlayer?: AddPlayer) {
 
   render(
     <MantineProvider env="test">
-      <Harness />
+      <MemoryRouter>
+        <Harness />
+      </MemoryRouter>
     </MantineProvider>,
   );
   return { dispatched, doc: () => current, registry: () => registry };
@@ -265,6 +268,43 @@ describe('RegistrationPanel when finished', () => {
     expect(names(registeredColumn())).toHaveLength(4);
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+});
+
+describe('RegistrationPanel profile links', () => {
+  it('links registered registry players and the read-only registry, not guests', () => {
+    const guest = PLAYERS[7];
+    const log = registeredLog(2).add('PlayerRegistered', {
+      playerId: guest,
+      playerName: 'Visitor',
+      guest: true,
+    });
+    addClosedRound(log, 1, 'swiss', [pairing(1, 1, P1, P2), pairing(2, 2, guest, null)]).add(
+      'TournamentFinished',
+      {},
+    );
+    renderPanel(toDoc(log.events));
+
+    expect(registeredColumn().getByRole('link', { name: 'Player 1' })).toHaveAttribute(
+      'href',
+      `/players/${P1}`,
+    );
+    expect(registeredColumn().getByText('Visitor')).toBeInTheDocument();
+    expect(registeredColumn().queryByRole('link', { name: 'Visitor' })).not.toBeInTheDocument();
+    expect(registryColumn().getByRole('link', { name: 'Alice' })).toHaveAttribute(
+      'href',
+      `/players/${PLAYERS[4]}`,
+    );
+  });
+
+  it('keeps registry names as register buttons in edit mode', () => {
+    const { dispatched } = renderPanel(toDoc(logBuilder().events));
+    expect(registryColumn().queryByRole('link')).not.toBeInTheDocument();
+
+    fireEvent.click(registryColumn().getByRole('button', { name: 'Bruno' }));
+
+    expect(dispatched).toHaveLength(1);
+    expect(names(registeredColumn())).toEqual(['Bruno']);
   });
 });
 

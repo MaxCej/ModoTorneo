@@ -1,9 +1,17 @@
 import { Badge, Group, Table } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import type { Standing } from '../../domain';
+import type { Standing, Uuid } from '../../domain';
+import { PlayerName } from '../players/PlayerName';
+
+type Props = {
+  rows: Standing[];
+  round: number;
+  /** Whether a player is a guest; guests' names are not profile links. */
+  isGuest: (playerId: Uuid) => boolean;
+};
 
 /** Read-only swiss standings after `round`, one row per `Standing`, in order. */
-export function StandingsTable({ rows, round }: { rows: Standing[]; round: number }) {
+export function StandingsTable({ rows, round, isGuest }: Props) {
   const { t } = useTranslation();
   const pct = (value: number) =>
     t('tournament.standings.percent', { value: (value * 100).toFixed(2) });
@@ -28,7 +36,11 @@ export function StandingsTable({ rows, round }: { rows: Standing[]; round: numbe
               <Table.Td>{row.rank}</Table.Td>
               <Table.Td>
                 <Group gap="xs" wrap="nowrap">
-                  {row.playerName}
+                  <PlayerName
+                    playerId={row.playerId}
+                    name={row.playerName}
+                    guest={isGuest(row.playerId)}
+                  />
                   {row.dropped && (
                     <Badge size="sm" variant="light" color="gray">
                       {t('tournament.standings.dropped')}

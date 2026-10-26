@@ -5,6 +5,7 @@
   },
   "nav": {
     "tournaments": "Tournaments",
+    "players": "Players",
     "data": "Data",
     "settings": "Settings",
     "toggle": "Toggle navigation",
@@ -22,6 +23,61 @@
       "format": "Format",
       "status": "Status",
       "players": "Players"
+    }
+  },
+  "players": {
+    "title": "Players",
+    "search": "Search",
+    "tableLabel": "Players",
+    "empty": "No players yet. Players are added when you register them in a tournament.",
+    "noMatch": "No player matches the search.",
+    "unavailable": "Local storage is unavailable in this browser.",
+    "loadFailed": "Could not load players ({{code}}): {{message}}",
+    "none": "—",
+    "columns": {
+      "name": "Name",
+      "tournaments": "Tournaments",
+      "record": "Record",
+      "matchWinRate": "Match win %",
+      "gameWinRate": "Game win %",
+      "lastPlayed": "Last played"
+    },
+    "sortIndicator": {
+      "ascending": "▲",
+      "descending": "▼"
+    },
+    "profile": {
+      "notFound": "Player not found",
+      "backToList": "Players",
+      "totalsLabel": "Totals",
+      "byes": "Byes",
+      "topCuts": "Top cuts",
+      "bestPlacing": "Best top cut finish",
+      "noTournaments": "{{name}} has not played in any tournament yet.",
+      "byFormat": "By format",
+      "history": "History",
+      "historyLabel": "Tournament history",
+      "format": "Format",
+      "date": "Date",
+      "tournament": "Tournament",
+      "status": "Status",
+      "swiss": "Swiss",
+      "swissRank": "Swiss rank",
+      "topCut": "Top cut",
+      "swissWithByes_one": "{{record}} +{{count}} bye",
+      "swissWithByes_other": "{{record}} +{{count}} byes",
+      "rankOf": "{{rank}} of {{players}}",
+      "rename": "Rename"
+    },
+    "rename": {
+      "title": "Rename player",
+      "name": "Name",
+      "note": "Past tournaments keep the name they were played with.",
+      "duplicate": "Another player is already called {{name}}.",
+      "failed": "Could not rename ({{code}}): {{message}}",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saveAnyway": "Rename anyway"
     }
   },
   "newTournament": {
@@ -201,7 +257,7 @@
       "tab": "Top cut",
       "heading": "Top {{size}} · Best of {{bestOf}}",
       "empty": "Pair the first top cut round to see the bracket.",
-      "bracketPlayer": "({{seed}}) {{name}}",
+      "bracketSeed": "({{seed}})",
       "notReported": "Not reported",
       "placingsLabel": "Top cut placings",
       "place": "Place",
