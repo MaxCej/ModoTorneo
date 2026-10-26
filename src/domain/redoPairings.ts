@@ -21,7 +21,12 @@ const defaultDeps: Deps & PairingDeps = {
 };
 
 /** Events made during the round that survive a redo. */
-const CARRIED_TYPES = new Set(['PlayerRegistered', 'PlayerDropped', 'TournamentDetailsChanged']);
+const CARRIED_TYPES = new Set([
+  'PlayerRegistered',
+  'PlayerDropped',
+  'TournamentDetailsChanged',
+  'DeckSet',
+]);
 
 /**
  * Builds the commands that re-pair the open swiss round.
