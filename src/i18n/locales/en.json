@@ -60,6 +60,7 @@
       "format": "Format",
       "date": "Date",
       "tournament": "Tournament",
+      "deck": "Deck",
       "status": "Status",
       "swiss": "Swiss",
       "swissRank": "Swiss rank",
@@ -187,7 +188,9 @@
       "unparsedLine": "Line {{line}}: {{text}}",
       "capped": "{{name}}: quantity capped at 99.",
       "save": "Save",
-      "clear": "Clear deck"
+      "clear": "Clear deck",
+      "column": "Deck",
+      "none": "—"
     },
     "rounds": {
       "tabPlayers": "Players",

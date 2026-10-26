@@ -147,14 +147,40 @@ describe('TopCutPanel', () => {
       expect.arrayContaining(['Quarterfinals', 'Semifinals', 'Final']),
     );
     expect(placingRows()).toEqual([
-      ['1st', 'Player 3', '2'],
-      ['2nd', 'Player 1', '1'],
-      ['3rd–4th', 'Player 5', '3'],
-      ['3rd–4th', 'Player 7', '4'],
-      ['5th–8th', 'Player 2', '5'],
-      ['5th–8th', 'Player 4', '6'],
-      ['5th–8th', 'Player 6', '7'],
-      ['5th–8th', 'Player 8', '8'],
+      ['1st', 'Player 3', '—', '2'],
+      ['2nd', 'Player 1', '—', '1'],
+      ['3rd–4th', 'Player 5', '—', '3'],
+      ['3rd–4th', 'Player 7', '—', '4'],
+      ['5th–8th', 'Player 2', '—', '5'],
+      ['5th–8th', 'Player 4', '—', '6'],
+      ['5th–8th', 'Player 6', '—', '7'],
+      ['5th–8th', 'Player 8', '—', '8'],
+    ]);
+  });
+
+  it('shows archetypes under bracket names and in the placings Deck column', () => {
+    const log = started(4).add('DeckSet', {
+      playerId: ids[0],
+      archetype: 'Burn',
+      main: [],
+      sideboard: [],
+    });
+    play(log); // semifinals: 1 v 7, 3 v 5
+    log.add('TournamentFinished', {});
+    renderPanel(stateOf(log));
+
+    const table1 = within(
+      within(screen.getByRole('group', { name: 'Semifinals' })).getByRole('group', {
+        name: 'Table 1',
+      }),
+    );
+    expect(table1.getByText('Burn')).toBeInTheDocument();
+    expect(table1.getAllByText(/Burn|—/)).toHaveLength(1);
+    expect(placingRows().map((row) => [row[1], row[2]])).toEqual([
+      ['Player 1', 'Burn'],
+      ['Player 3', '—'],
+      ['Player 5', '—'],
+      ['Player 7', '—'],
     ]);
   });
 

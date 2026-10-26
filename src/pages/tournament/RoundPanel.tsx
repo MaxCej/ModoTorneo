@@ -90,6 +90,8 @@ export function RoundPanel({ state, round, onDispatch }: Props) {
                 match={match}
                 labelA={label(match.playerA)}
                 labelB={match.playerB === null ? null : label(match.playerB)}
+                deckA={state.players[match.playerA]?.deck ?? null}
+                deckB={match.playerB === null ? null : (state.players[match.playerB]?.deck ?? null)}
                 readOnly={readOnly}
                 stage={round.stage}
                 bestOf={state.topCutBestOf ?? 3}

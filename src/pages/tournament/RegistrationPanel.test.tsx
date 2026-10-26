@@ -307,6 +307,21 @@ describe('RegistrationPanel deck button', () => {
     },
   );
 
+  it('shows the archetype under the name, and nothing without one', () => {
+    const log = registeredLog(2).add('DeckSet', {
+      playerId: P1,
+      archetype: 'Burn',
+      main: [],
+      sideboard: [],
+    });
+    renderPanel(toDoc(log.events));
+
+    const rows = registeredColumn().getAllByRole('listitem');
+    expect(within(rows[0]).getByText('Burn')).toBeInTheDocument();
+    expect(rows[0].firstChild?.textContent).toBe('Player 1Burn');
+    expect(rows[1].firstChild?.textContent).toBe('Player 2');
+  });
+
   it('opens the deck modal and saves through the dispatch', () => {
     const { dispatched } = renderPanel(toDoc(docs.running().events));
 

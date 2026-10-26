@@ -44,7 +44,7 @@ beforeEach(() => {
 
 /**
  * Alice (P1) plays the SPEC 02 fixture (3-0-0 swiss, 1-1 top cut, 2nd) and a pauper event:
- * a 1-2 loss, a bye, then a drop. Newcomer is in the registry with no tournaments.
+ * a 1-2 loss, a bye, then a drop, playing Faeries. Newcomer is in the registry with no tournaments.
  */
 async function seed() {
   await backend.savePlayer({ id: P1, name: 'Alice', createdAt: NOW });
@@ -63,7 +63,9 @@ async function seed() {
       ],
     ],
     { ...CREATED_PAYLOAD, name: 'Pauper Night', date: '2026-10-20', format: 'pauper' },
-  ).add('PlayerDropped', { playerId: P1 });
+  )
+    .add('DeckSet', { playerId: P1, archetype: 'Faeries', main: [], sideboard: [] })
+    .add('PlayerDropped', { playerId: P1 });
   await backend.saveTournament({ schemaVersion: 1, id: PAUPER_ID, events: pauper.events }, null);
 }
 
@@ -111,8 +113,17 @@ describe('PlayerPage', () => {
       ['Pauper', '1', '0-1-0', '0.00%', '33.33%'],
     ]);
     expect(rowsOf('Tournament history')).toEqual([
-      ['2026-10-20', 'Pauper NightDropped', 'Pauper', 'Running', '0-1-0 +1 bye', '2 of 3', '—'],
-      ['2026-10-11', 'Friday Night Magic', 'Modern', 'Finished', '3-0-0', '1 of 8', '2nd'],
+      [
+        '2026-10-20',
+        'Pauper NightDropped',
+        'Faeries',
+        'Pauper',
+        'Running',
+        '0-1-0 +1 bye',
+        '2 of 3',
+        '—',
+      ],
+      ['2026-10-11', 'Friday Night Magic', '—', 'Modern', 'Finished', '3-0-0', '1 of 8', '2nd'],
     ]);
   });
 

@@ -2,6 +2,7 @@ import { Badge, Button, Group, Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { PlayerEntry, TournamentStatus } from '../../domain';
 import { PlayerName } from '../players/PlayerName';
+import { Archetype } from './Archetype';
 import { NameEntry } from './NameEntry';
 
 type Props = {
@@ -52,25 +53,28 @@ export function RegisteredList({
         <Stack gap={4} component="ul" p={0} m={0} style={{ listStyle: 'none' }}>
           {entries.map((entry) => (
             <Group key={entry.playerId} component="li" justify="space-between" wrap="nowrap">
-              <Group gap="xs" wrap="nowrap">
-                <Text c={entry.dropped ? 'dimmed' : undefined}>
-                  <PlayerName
-                    playerId={entry.playerId}
-                    name={entry.playerName}
-                    guest={entry.guest}
-                  />
-                </Text>
-                {entry.guest && (
-                  <Badge size="sm" variant="light" color="grape">
-                    {t('tournament.registration.guest')}
-                  </Badge>
-                )}
-                {entry.dropped && (
-                  <Badge size="sm" variant="light" color="gray">
-                    {t('tournament.registration.dropped')}
-                  </Badge>
-                )}
-              </Group>
+              <Stack gap={0}>
+                <Group gap="xs" wrap="nowrap">
+                  <Text c={entry.dropped ? 'dimmed' : undefined}>
+                    <PlayerName
+                      playerId={entry.playerId}
+                      name={entry.playerName}
+                      guest={entry.guest}
+                    />
+                  </Text>
+                  {entry.guest && (
+                    <Badge size="sm" variant="light" color="grape">
+                      {t('tournament.registration.guest')}
+                    </Badge>
+                  )}
+                  {entry.dropped && (
+                    <Badge size="sm" variant="light" color="gray">
+                      {t('tournament.registration.dropped')}
+                    </Badge>
+                  )}
+                </Group>
+                <Archetype deck={entry.deck} />
+              </Stack>
               <Group gap={4} wrap="nowrap">
                 <Button
                   size="compact-xs"

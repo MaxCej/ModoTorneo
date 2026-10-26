@@ -6,9 +6,11 @@ import {
   matchOutcome,
   MatchResultSchema,
   type BestOf,
+  type Deck,
   type Match,
   type MatchResult,
 } from '../../domain';
+import { Archetype } from './Archetype';
 
 /** Swiss matches are best of three. */
 const SWISS_BEST_OF = 3;
@@ -79,6 +81,9 @@ type Props = {
   labelA: string;
   /** null for a bye. */
   labelB: string | null;
+  /** Shown under each name. */
+  deckA?: Deck | null;
+  deckB?: Deck | null;
   readOnly: boolean;
   /** Top cut rounds offer winner-only results for their best-of. Default: swiss. */
   stage?: 'swiss' | 'topCut';
@@ -92,6 +97,8 @@ export function MatchRow({
   match,
   labelA,
   labelB,
+  deckA = null,
+  deckB = null,
   readOnly,
   stage = 'swiss',
   bestOf = 3,
@@ -117,9 +124,10 @@ export function MatchRow({
       <Badge variant="light" w={64}>
         {t('tournament.rounds.table', { table: match.table })}
       </Badge>
-      <Text miw={180} fw={500}>
-        {labelA}
-      </Text>
+      <Stack gap={0} miw={180}>
+        <Text fw={500}>{labelA}</Text>
+        <Archetype deck={deckA} />
+      </Stack>
 
       {bye ? (
         <Text c="dimmed">{t('tournament.rounds.bye')}</Text>
@@ -160,9 +168,10 @@ export function MatchRow({
               )}
             </Group>
           )}
-          <Text miw={180} fw={500}>
-            {labelB}
-          </Text>
+          <Stack gap={0} miw={180}>
+            <Text fw={500}>{labelB}</Text>
+            <Archetype deck={deckB} />
+          </Stack>
           {customOpen && !readOnly && (
             <CustomResult
               initial={current}

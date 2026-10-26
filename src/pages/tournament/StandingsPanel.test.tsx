@@ -61,13 +61,26 @@ describe('StandingsPanel', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((th) => th.textContent),
-    ).toEqual(['Rank', 'Player', 'MP', 'W-L-D', 'OMW%', 'GW%', 'OGW%']);
+    ).toEqual(['Rank', 'Player', 'Deck', 'MP', 'W-L-D', 'OMW%', 'GW%', 'OGW%']);
     // C (GW% 100%) ranks above A (GW% 2/3). B's GW% 1/3 shows 33.33%, D's 0 is floored to 33.00%.
     expect(bodyRows(table)).toEqual([
-      ['1', 'Player 3', '3', '1-0-0', '33.00%', '100.00%', '33.00%'],
-      ['2', 'Player 1', '3', '1-0-0', '33.00%', '66.67%', '33.33%'],
-      ['3', 'Player 2', '0', '0-1-0', '100.00%', '33.33%', '66.67%'],
-      ['4', 'Player 4', '0', '0-1-0', '100.00%', '33.00%', '100.00%'],
+      ['1', 'Player 3', '—', '3', '1-0-0', '33.00%', '100.00%', '33.00%'],
+      ['2', 'Player 1', '—', '3', '1-0-0', '33.00%', '66.67%', '33.33%'],
+      ['3', 'Player 2', '—', '0', '0-1-0', '100.00%', '33.33%', '66.67%'],
+      ['4', 'Player 4', '—', '0', '0-1-0', '100.00%', '33.00%', '100.00%'],
+    ]);
+  });
+
+  it("shows each player's archetype in the Deck column", () => {
+    renderPanel(
+      round1Closed().add('DeckSet', { playerId: A, archetype: 'Burn', main: [], sideboard: [] }),
+    );
+    const table = screen.getByRole('table', { name: 'Standings after round 1' });
+    expect(bodyRows(table).map((row) => [row[1], row[2]])).toEqual([
+      ['Player 3', '—'],
+      ['Player 1', 'Burn'],
+      ['Player 2', '—'],
+      ['Player 4', '—'],
     ]);
   });
 
@@ -99,7 +112,7 @@ describe('StandingsPanel', () => {
       renderPanel(round2Closed());
       expect(picker()).toHaveValue('Round 2');
       const table = screen.getByRole('table', { name: 'Standings after round 2' });
-      expect(bodyRows(table).map((row) => [row[1], row[2], row[3]])).toEqual([
+      expect(bodyRows(table).map((row) => [row[1], row[3], row[4]])).toEqual([
         ['Player 1', '6', '2-0-0'],
         ['Player 3', '3', '1-1-0'],
         ['Player 4', '3', '1-1-0'],
@@ -114,7 +127,7 @@ describe('StandingsPanel', () => {
 
       expect(picker()).toHaveValue('Round 1');
       const table = screen.getByRole('table', { name: 'Standings after round 1' });
-      expect(bodyRows(table).map((row) => [row[1], row[2], row[3]])).toEqual([
+      expect(bodyRows(table).map((row) => [row[1], row[3], row[4]])).toEqual([
         ['Player 3', '3', '1-0-0'],
         ['Player 1', '3', '1-0-0'],
         ['Player 2', '0', '0-1-0'],
@@ -136,7 +149,7 @@ describe('StandingsPanel', () => {
       fireEvent.click(picker());
       expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Round 1']);
       const table = screen.getByRole('table', { name: 'Standings after round 1' });
-      expect(bodyRows(table).map((row) => [row[1], row[2]])).toEqual([
+      expect(bodyRows(table).map((row) => [row[1], row[3]])).toEqual([
         ['Player 3', '3'],
         ['Player 1', '3'],
         ['Player 2', '0'],

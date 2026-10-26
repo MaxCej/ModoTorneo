@@ -9,6 +9,7 @@ import {
   type TournamentState,
 } from '../../domain';
 import { PlayerName } from '../players/PlayerName';
+import { Archetype } from './Archetype';
 import { useResultText } from './MatchRow';
 
 /** The bracket, one column per paired top cut round, and the placings. */
@@ -48,7 +49,14 @@ export function TopCutPanel({ state }: { state: TournamentState }) {
                 <Stack key={round.round} gap="xs" w={240} role="group" aria-label={roundName}>
                   <Text fw={700}>{roundName}</Text>
                   {round.matches.map((match) => (
-                    <BracketMatchCard key={match.table} match={match} name={name} />
+                    <BracketMatchCard
+                      key={match.table}
+                      match={match}
+                      name={name}
+                      deck={(playerId) => (
+                        <Archetype deck={state.players[playerId]?.deck ?? null} />
+                      )}
+                    />
                   ))}
                 </Stack>
               );
@@ -63,6 +71,7 @@ export function TopCutPanel({ state }: { state: TournamentState }) {
               <Table.Tr>
                 <Table.Th>{t('tournament.topCut.place')}</Table.Th>
                 <Table.Th>{t('tournament.topCut.player')}</Table.Th>
+                <Table.Th>{t('tournament.deck.column')}</Table.Th>
                 <Table.Th>{t('tournament.topCut.seed')}</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -71,6 +80,9 @@ export function TopCutPanel({ state }: { state: TournamentState }) {
                 <Table.Tr key={placing.playerId}>
                   <Table.Td>{place(placing.from, placing.to)}</Table.Td>
                   <Table.Td>{name(placing.playerId)}</Table.Td>
+                  <Table.Td>
+                    {state.players[placing.playerId]?.deck?.archetype ?? t('tournament.deck.none')}
+                  </Table.Td>
                   <Table.Td>{placing.seed}</Table.Td>
                 </Table.Tr>
               ))}
@@ -82,10 +94,15 @@ export function TopCutPanel({ state }: { state: TournamentState }) {
   );
 }
 
-type CardProps = { match: BracketMatch; name: (playerId: string) => ReactNode };
+type CardProps = {
+  match: BracketMatch;
+  name: (playerId: string) => ReactNode;
+  /** The archetype shown under the name. */
+  deck: (playerId: string) => ReactNode;
+};
 
 /** Both players as "(seed) name", the winner in bold, and the score. */
-function BracketMatchCard({ match, name }: CardProps) {
+function BracketMatchCard({ match, name, deck }: CardProps) {
   const { t } = useTranslation();
   const resultText = useResultText();
   const line = (player: BracketPlayer) => {
@@ -94,12 +111,17 @@ function BracketMatchCard({ match, name }: CardProps) {
         {t('tournament.topCut.bracketSeed', { seed: player.seed })} {name(player.playerId)}
       </>
     );
-    return match.winner === player.playerId ? (
-      <Text component="strong" fw={700} size="sm">
-        {text}
-      </Text>
-    ) : (
-      <Text size="sm">{text}</Text>
+    return (
+      <div>
+        {match.winner === player.playerId ? (
+          <Text component="strong" fw={700} size="sm">
+            {text}
+          </Text>
+        ) : (
+          <Text size="sm">{text}</Text>
+        )}
+        {deck(player.playerId)}
+      </div>
     );
   };
 
