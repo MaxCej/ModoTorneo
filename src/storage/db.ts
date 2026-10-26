@@ -3,12 +3,14 @@ import {
   parseTournamentDocument,
   playerResults,
   tournamentArchetypes,
+  tournamentMetagame,
   type Format,
   type IsoDate,
   type IsoDateTime,
   type Player,
   type PlayerResult,
   type TournamentDocument,
+  type TournamentMetagame,
   type TournamentStatus,
   type Uuid,
 } from '../domain';
@@ -30,6 +32,7 @@ export type TournamentRow = {
   updatedAt: IsoDateTime;
   players: PlayerResult[]; // added in version 4
   archetypes: string[]; // added in version 5
+  metagame: TournamentMetagame; // added in version 6
 };
 
 export type PlayerRow = Player;
@@ -63,6 +66,12 @@ function deckFieldsOf(doc: unknown): Pick<TournamentRow, 'players' | 'archetypes
         archetypes: tournamentArchetypes(parsed.value.state),
       }
     : { players: [], archetypes: [] };
+}
+
+/** Metagame of a stored document (version 6). An invalid doc gets empty lists and still fails on load. */
+function metagameOf(doc: unknown): TournamentMetagame {
+  const parsed = parseTournamentDocument(doc);
+  return parsed.ok ? tournamentMetagame(parsed.value.state) : { archetypes: [], matchups: [] };
 }
 
 export class ModoTorneoDb extends Dexie {
@@ -114,6 +123,19 @@ export class ModoTorneoDb extends Dexie {
           .toCollection()
           .modify((row) => {
             Object.assign(row, deckFieldsOf(row.doc));
+          });
+        await tx.table('githubSummaries').clear();
+      });
+    // Version 6: same indexes. Adds `metagame` (guests included, with matchups), and clears the
+    // GitHub summary cache again for the same reason as version 4.
+    this.version(6)
+      .stores({ ...stores, githubSummaries: '[repo+id]' })
+      .upgrade(async (tx) => {
+        await tx
+          .table<TournamentRow, Uuid>('tournaments')
+          .toCollection()
+          .modify((row) => {
+            row.metagame = metagameOf(row.doc);
           });
         await tx.table('githubSummaries').clear();
       });

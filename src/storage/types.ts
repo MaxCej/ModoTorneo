@@ -7,6 +7,7 @@ import type {
   PlayerResult,
   Result,
   TournamentDocument,
+  TournamentMetagame,
   TournamentState,
   TournamentStatus,
   Uuid,
@@ -27,6 +28,7 @@ export type TournamentSummary = {
   revision: Revision;
   players: PlayerResult[]; // playerResults(state): one row per registry player
   archetypes: string[]; // tournamentArchetypes(state): every registered player, guests included
+  metagame: TournamentMetagame; // tournamentMetagame(state): guests included
 };
 
 export type StoredTournament = {

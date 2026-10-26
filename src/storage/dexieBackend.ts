@@ -61,6 +61,7 @@ function rowSummary(row: TournamentRow): TournamentSummary {
     revision: String(row.revision),
     players: row.players,
     archetypes: row.archetypes,
+    metagame: row.metagame,
   };
 }
 
