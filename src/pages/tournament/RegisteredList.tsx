@@ -13,9 +13,11 @@ type Props = {
   onAddGuest: (name: string) => string | null;
   onRemove: (entry: PlayerEntry) => void;
   onDrop: (entry: PlayerEntry) => void;
+  /** Opens the deck modal. Every status, dropped players included. */
+  onDeck: (entry: PlayerEntry) => void;
 };
 
-/** Right column: players in this tournament. Remove in setup, Drop while running. */
+/** Right column: players in this tournament. Deck always, Remove in setup, Drop while running. */
 export function RegisteredList({
   entries,
   status,
@@ -23,6 +25,7 @@ export function RegisteredList({
   onAddGuest,
   onRemove,
   onDrop,
+  onDeck,
 }: Props) {
   const { t } = useTranslation();
   const active = entries.filter((entry) => !entry.dropped).length;
@@ -68,28 +71,40 @@ export function RegisteredList({
                   </Badge>
                 )}
               </Group>
-              {status === 'setup' && (
+              <Group gap={4} wrap="nowrap">
                 <Button
                   size="compact-xs"
                   variant="subtle"
-                  color="red"
-                  aria-label={t('tournament.registration.removeLabel', { name: entry.playerName })}
-                  onClick={() => onRemove(entry)}
+                  aria-label={t('tournament.deck.buttonLabel', { name: entry.playerName })}
+                  onClick={() => onDeck(entry)}
                 >
-                  {t('tournament.registration.remove')}
+                  {t('tournament.deck.button')}
                 </Button>
-              )}
-              {status === 'running' && !entry.dropped && (
-                <Button
-                  size="compact-xs"
-                  variant="subtle"
-                  color="red"
-                  aria-label={t('tournament.registration.dropLabel', { name: entry.playerName })}
-                  onClick={() => onDrop(entry)}
-                >
-                  {t('tournament.registration.drop')}
-                </Button>
-              )}
+                {status === 'setup' && (
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    color="red"
+                    aria-label={t('tournament.registration.removeLabel', {
+                      name: entry.playerName,
+                    })}
+                    onClick={() => onRemove(entry)}
+                  >
+                    {t('tournament.registration.remove')}
+                  </Button>
+                )}
+                {status === 'running' && !entry.dropped && (
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    color="red"
+                    aria-label={t('tournament.registration.dropLabel', { name: entry.playerName })}
+                    onClick={() => onDrop(entry)}
+                  >
+                    {t('tournament.registration.drop')}
+                  </Button>
+                )}
+              </Group>
             </Group>
           ))}
         </Stack>

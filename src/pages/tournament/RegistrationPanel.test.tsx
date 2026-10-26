@@ -242,7 +242,12 @@ describe('RegistrationPanel while running', () => {
     expect(dispatched).toEqual([{ type: 'PlayerDropped', payload: { playerId: P2 } }]);
     const row = registeredColumn().getByText('Player 2').closest('li')!;
     expect(within(row).getByText('Dropped')).toBeInTheDocument();
-    expect(within(row).queryByRole('button')).not.toBeInTheDocument();
+    // Only the Deck button is left.
+    expect(
+      within(row)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Deck']);
     // N counts only players who have not dropped.
     expect(screen.getByRole('heading', { name: 'Registered (3)' })).toBeInTheDocument();
   });
@@ -257,7 +262,7 @@ describe('RegistrationPanel while running', () => {
 });
 
 describe('RegistrationPanel when finished', () => {
-  it('shows both lists with no inputs and no buttons', () => {
+  it('shows both lists with no inputs and only the Deck buttons', () => {
     const log = addClosedRound(registeredLog(4), 1, 'swiss', [
       pairing(1, 1, P1, P2),
       pairing(2, 2, P3, P4),
@@ -267,7 +272,56 @@ describe('RegistrationPanel when finished', () => {
     expect(names(registryColumn())).toEqual(['Alice', 'Bruno']);
     expect(names(registeredColumn())).toHaveLength(4);
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(
+      Array(4).fill('Deck'),
+    );
+  });
+});
+
+describe('RegistrationPanel deck button', () => {
+  const swissClosed = () =>
+    addClosedRound(registeredLog(4), 1, 'swiss', [pairing(1, 1, P1, P2), pairing(2, 2, P3, P4)]);
+  const docs = {
+    setup: () => registeredLog(4),
+    running: () => {
+      const log = registeredLog(4).add('RoundPaired', {
+        round: 1,
+        stage: 'swiss',
+        pairings: [pairing(1, 1, P1, P2), pairing(2, 2, P3, P4)],
+      });
+      return log.add('PlayerDropped', { playerId: P4 });
+    },
+    topCut: () => swissClosed().add('TopCutStarted', { size: 4 }),
+    finished: () => swissClosed().add('TournamentFinished', {}),
+  };
+
+  it.each(Object.keys(docs) as (keyof typeof docs)[])(
+    'shows a Deck button for every registered player while %s',
+    (status) => {
+      renderPanel(toDoc(docs[status]().events));
+      for (const name of ['Player 1', 'Player 2', 'Player 3', 'Player 4']) {
+        expect(
+          registeredColumn().getByRole('button', { name: `Deck for ${name}` }),
+        ).toBeInTheDocument();
+      }
+    },
+  );
+
+  it('opens the deck modal and saves through the dispatch', () => {
+    const { dispatched } = renderPanel(toDoc(docs.running().events));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deck for Player 4' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Deck · Player 4' }));
+    fireEvent.change(dialog.getByRole('combobox', { name: 'Archetype' }), {
+      target: { value: 'Burn' },
+    });
+    fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+
+    expect(dispatched.at(-1)).toEqual({
+      type: 'SetDeck',
+      payload: { playerId: P4, archetype: 'Burn', main: [], sideboard: [] },
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
 

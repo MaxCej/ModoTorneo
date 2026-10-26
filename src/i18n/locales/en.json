@@ -172,6 +172,23 @@
         "confirm": "Drop"
       }
     },
+    "deck": {
+      "button": "Deck",
+      "buttonLabel": "Deck for {{name}}",
+      "title": "Deck · {{name}}",
+      "archetype": "Archetype",
+      "decklist": "Decklist",
+      "placeholder": "Paste a Moxfield or Arena text export",
+      "main": "Main deck ({{count}})",
+      "sideboard": "Sideboard ({{count}})",
+      "card": "{{quantity}} {{name}}",
+      "unparsed_one": "{{count}} line was not read:",
+      "unparsed_other": "{{count}} lines were not read:",
+      "unparsedLine": "Line {{line}}: {{text}}",
+      "capped": "{{name}}: quantity capped at 99.",
+      "save": "Save",
+      "clear": "Clear deck"
+    },
     "rounds": {
       "tabPlayers": "Players",
       "tabRound": "Round {{round}}",

@@ -11,6 +11,7 @@ import {
   type TournamentState,
 } from '../../domain';
 import type { StorageError } from '../../storage';
+import { DeckModal } from './DeckModal';
 import { DropPlayerModal } from './DropPlayerModal';
 import { RegisteredList } from './RegisteredList';
 import { RegistryList } from './RegistryList';
@@ -38,6 +39,7 @@ export function RegistrationPanel({
 }: Props) {
   const { t } = useTranslation();
   const [dropping, setDropping] = useState<PlayerEntry | null>(null);
+  const [deckFor, setDeckFor] = useState<PlayerEntry | null>(null);
   const readOnly = state.status === 'topCut' || state.status === 'finished';
 
   const available = players.filter((player) => !(player.id in state.players));
@@ -101,6 +103,7 @@ export function RegistrationPanel({
             onDispatch({ type: 'PlayerUnregistered', payload: { playerId: entry.playerId } })
           }
           onDrop={setDropping}
+          onDeck={setDeckFor}
         />
       </SimpleGrid>
 
@@ -112,6 +115,15 @@ export function RegistrationPanel({
             onDispatch({ type: 'PlayerDropped', payload: { playerId: dropping.playerId } });
             setDropping(null);
           }}
+        />
+      )}
+
+      {deckFor && state.players[deckFor.playerId] && (
+        <DeckModal
+          state={state}
+          entry={state.players[deckFor.playerId]}
+          onClose={() => setDeckFor(null)}
+          onDispatch={onDispatch}
         />
       )}
     </Card>
