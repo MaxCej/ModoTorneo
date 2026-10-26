@@ -2,6 +2,7 @@ import Dexie, { type EntityTable, type Table } from 'dexie';
 import {
   parseTournamentDocument,
   playerResults,
+  tournamentArchetypes,
   type Format,
   type IsoDate,
   type IsoDateTime,
@@ -28,6 +29,7 @@ export type TournamentRow = {
   playerCount: number; // added in version 2
   updatedAt: IsoDateTime;
   players: PlayerResult[]; // added in version 4
+  archetypes: string[]; // added in version 5
 };
 
 export type PlayerRow = Player;
@@ -50,6 +52,17 @@ function playerCountOf(doc: unknown): number {
 function playerResultsOf(doc: unknown): PlayerResult[] {
   const parsed = parseTournamentDocument(doc);
   return parsed.ok ? playerResults(parsed.value.state) : [];
+}
+
+/** Summary fields that need decks (version 5). An invalid doc gets none and still fails on load. */
+function deckFieldsOf(doc: unknown): Pick<TournamentRow, 'players' | 'archetypes'> {
+  const parsed = parseTournamentDocument(doc);
+  return parsed.ok
+    ? {
+        players: playerResults(parsed.value.state),
+        archetypes: tournamentArchetypes(parsed.value.state),
+      }
+    : { players: [], archetypes: [] };
 }
 
 export class ModoTorneoDb extends Dexie {
@@ -88,6 +101,19 @@ export class ModoTorneoDb extends Dexie {
           .toCollection()
           .modify((row) => {
             row.players = playerResultsOf(row.doc);
+          });
+        await tx.table('githubSummaries').clear();
+      });
+    // Version 5: same indexes. Recomputes `players` (now with `archetype`), adds `archetypes`,
+    // and clears the GitHub summary cache again for the same reason as version 4.
+    this.version(5)
+      .stores({ ...stores, githubSummaries: '[repo+id]' })
+      .upgrade(async (tx) => {
+        await tx
+          .table<TournamentRow, Uuid>('tournaments')
+          .toCollection()
+          .modify((row) => {
+            Object.assign(row, deckFieldsOf(row.doc));
           });
         await tx.table('githubSummaries').clear();
       });

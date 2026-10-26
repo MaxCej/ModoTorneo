@@ -1,5 +1,6 @@
 import {
   playerResults,
+  tournamentArchetypes,
   type IsoDateTime,
   type Player,
   type TournamentDocument,
@@ -25,6 +26,7 @@ export function toSummary(
     updatedAt,
     revision,
     players: playerResults(state),
+    archetypes: tournamentArchetypes(state),
   };
 }
 
